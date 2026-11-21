@@ -34,9 +34,19 @@ function loudness(analyser: AnalyserNode, samples: Float32Array<ArrayBuffer>): n
   return Math.min(1, Math.sqrt(sum / samples.length) * 4)
 }
 
+/** Whether the extension already may use the microphone. Unknown (no Permissions API for it) counts as yes. */
+async function microphoneAllowed(): Promise<boolean> {
+  try {
+    return (await navigator.permissions.query({ name: 'microphone' as PermissionName })).state === 'granted'
+  } catch {
+    return true
+  }
+}
+
 /**
- * A side panel cannot show Chrome's microphone prompt, so the first time the panel opens an extension page
- * in a tab that asks for it. Once the person allows it there, the whole extension (and the panel) has it.
+ * A side panel cannot show Chrome's microphone prompt (getUserMedia there just waits, or is refused), so
+ * until the extension has the permission the panel opens an extension page in a tab that asks for it. Once
+ * the person allows it there, the whole extension (and the panel) has it.
  */
 function askForMicrophoneInATab(): void {
   try {
@@ -108,6 +118,14 @@ export function useVoiceSession() {
 
     active.current = dispose
     setStatus('connecting')
+    // From the start: any step that hangs (the microphone, the server, ElevenLabs) ends in a clear message.
+    timeout = setTimeout(() => finish('timeout'), 25000)
+
+    if (!(await microphoneAllowed())) {
+      askForMicrophoneInATab()
+      finish('permission')
+      return
+    }
 
     try {
       const audio = (context = new AudioContext({ sampleRate: SAMPLE_RATE }))
@@ -128,7 +146,6 @@ export function useVoiceSession() {
         microphone.getTracks().forEach((track) => track.stop())
         return
       }
-      timeout = setTimeout(() => finish('timeout'), 25000)
       if (!(await resumed) || audio.sampleRate !== SAMPLE_RATE) throw new Error('Audio incompatible')
       await audio.audioWorklet.addModule(chrome.runtime.getURL('voice-capture.js'))
       abort.signal.throwIfAborted()
