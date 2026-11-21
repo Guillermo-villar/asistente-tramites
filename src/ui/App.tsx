@@ -304,8 +304,14 @@ export function App() {
     else root.setAttribute('data-theme', settings.theme)
   }, [settings.theme])
 
-  useEffect(() => setTranscriptSource(() => items), [items])
-  useEffect(() => logEnd.current?.scrollIntoView({ block: 'end' }), [items, running])
+  // Block bodies: an effect must return a cleanup function or nothing. Chrome's scrollIntoView returns a
+  // Promise, which React would later try to call as the cleanup ("u is not a function").
+  useEffect(() => {
+    setTranscriptSource(() => items)
+  }, [items])
+  useEffect(() => {
+    logEnd.current?.scrollIntoView({ block: 'end' })
+  }, [items, running])
 
   const update = useCallback((next: Settings) => {
     setSettings(next)

@@ -27,7 +27,8 @@ function openPanel({ provider = 'openai', failStorage = false, failRender = fals
       windows: { getCurrent: async () => ({ id: 1 }), onFocusChanged: event },
     },
   })
-  panel.window.HTMLElement.prototype.scrollIntoView = () => {}
+  // Like current Chrome: scrollIntoView returns a Promise (jsdom's returns nothing).
+  panel.window.HTMLElement.prototype.scrollIntoView = (() => Promise.resolve()) as unknown as HTMLElement['scrollIntoView']
   panel.window.eval(bundle)
   return { document: panel.window.document, get }
 }
@@ -38,6 +39,15 @@ describe('built extension panel', () => {
     await vi.waitFor(() => expect(document.querySelector('textarea')).not.toBeNull())
     expect(document.querySelector('.brand-lockup svg path')).not.toBeNull()
     expect(document.querySelector('button[aria-label="Enviar"]')).not.toBeNull()
+  })
+
+  it('keeps the chat open after a starter is clicked', async () => {
+    const { document } = openPanel()
+    await vi.waitFor(() => expect(document.querySelector('.starters button')).not.toBeNull())
+    document.querySelector<HTMLButtonElement>('.starters button')!.click()
+    await vi.waitFor(() => expect(document.querySelector('.msg.user')?.textContent).toBe('Quiero renovar el DNI'))
+    expect(document.querySelector('[role="alert"]')).toBeNull()
+    expect(document.querySelector('textarea')).not.toBeNull()
   })
 
   it('opens onboarding when no API key is configured', async () => {
