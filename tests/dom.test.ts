@@ -209,11 +209,11 @@ describe('assistant-at-work frame', () => {
 })
 
 describe('sensitive fields covered on screen', () => {
-  it('covers the middle of a value and keeps its start and last character', () => {
-    expect(halfMask('12345678Z')).toBe('1234****Z')
-    expect(halfMask('X1234567L')).toBe('X123****L')
-    expect(halfMask('612 345 678')).toBe('612 3** **8')
-    expect(halfMask('ana.garcia@example.com')).toBe('ana.*****a@example.com')
+  it('keeps the first half of a value and covers the rest', () => {
+    expect(halfMask('12345678Z')).toBe('1234*****')
+    expect(halfMask('X1234567L')).toBe('X123*****')
+    expect(halfMask('612 345 678')).toBe('612 3** ***')
+    expect(halfMask('ana.garcia@example.com')).toBe('ana.g*****@example.com')
     expect(halfMask('ab')).toBe('**')
   })
 
@@ -228,6 +228,18 @@ describe('sensitive fields covered on screen', () => {
       <label for="g">Acepto</label><input id="g" type="checkbox">`
     const sensitive = [...document.querySelectorAll('input')].filter((el) => isSensitiveField(el)).map((el) => el.id)
     expect(sensitive).toEqual(['a', 'b', 'c', 'd', 'f'])
+  })
+
+  it('covers every field of the cita previa DNI form, as the real page labels them', () => {
+    document.body.innerHTML = `
+      <label for="numDocumento" title="Número y Letra del Documento ">Número y Letra del Documento:</label><input type="text" name="numDocumento" id="numDocumento">
+      <label for="letraDocumento" title="Número y Letra del Documento ">Letra:</label><input type="text" name="letraDocumento" id="letraDocumento">
+      <label for="codEquipo">Equipo de Expedición:</label><input type="text" name="codEquipo" id="codEquipo">
+      <label for="fechaValidez">Fecha de Validez:</label><input type="text" name="fechaValidez" id="fechaValidez">
+      <label for="numSoporte">Número de Soporte:</label><input type="text" name="numSoporte" id="numSoporte">
+      <label for="codSeguridad">Introduzca los caracteres que visualiza o escucha a continuación: <input type="text" name="codSeguridad" id="codSeguridad"></label>`
+    const sensitive = [...document.querySelectorAll('input')].filter((el) => isSensitiveField(el)).map((el) => el.id)
+    expect(sensitive).toEqual(['numDocumento', 'letraDocumento', 'codEquipo', 'fechaValidez', 'numSoporte', 'codSeguridad'])
   })
 
   it('hides the typed text on screen but keeps the real value for the form', () => {

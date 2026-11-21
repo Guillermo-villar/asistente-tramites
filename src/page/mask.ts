@@ -1,5 +1,5 @@
 // What the person types into a sensitive field (DNI, NIE, teléfono, correo, IBAN…) is shown half covered
-// on screen, «1234****Z», so it does not appear in a screen share or a recording. The field keeps its
+// on screen, «1234*****», so it does not appear in a screen share or a recording. The field keeps its
 // real value: its text is made transparent and the covered copy is drawn on top, in a closed shadow root
 // outside <body> (like the cursor), so the form sends what the person typed, the outline never reads the
 // copy, and the copy never takes a click. The value is read here, in the page, to draw the copy; it never
@@ -11,7 +11,7 @@ const HOST_ID = 'asistente-tramites-mask'
 const REFRESH_MS = 400
 
 /** Words in a field's label, name or id that mark it as personal data. */
-const SENSITIVE_NAME = /\b(?:dni|nie|nif|cif|documento|doc|soporte|pasaporte|identidad|identificaci[oó]n|tel[eé]fono|tlf|tfno|m[oó]vil|movil|phone|tel|e-?mail|correo|mail|iban|cuenta|ccc|seguridad social|nuss|naf|afiliaci[oó]n|tarjeta)\b|(?:dni|nie|nif|telef|movil|email|correo|iban|nuss|pasaport)/i
+const SENSITIVE_NAME = /\b(?:dni|nie|nif|cif|documento|doc|soporte|pasaporte|identidad|identificaci[oó]n|tel[eé]fono|tlf|tfno|m[oó]vil|movil|phone|tel|e-?mail|correo|mail|iban|cuenta|ccc|seguridad social|nuss|naf|afiliaci[oó]n|tarjeta|equipo|expedici[oó]n|validez|caducidad|seguridad|captcha|caracteres)\b|(?:dni|nie|nif|telef|movil|email|correo|iban|nuss|pasaport)/i
 /** Values that are personal data whatever the field is called (the shapes `redact` hides in dom.ts). */
 const SENSITIVE_VALUE = [
   /^\s*\d{8}[\s-]?[A-Z]\s*$/i, // DNI
@@ -23,20 +23,19 @@ const SENSITIVE_VALUE = [
 ]
 const TEXT_TYPES = new Set(['', 'text', 'tel', 'email', 'number', 'search'])
 
-/** Covers the middle of a value and keeps its start and its last character: «12345678Z» → «1234****Z». */
+/** Keeps the first half of a value and covers it from the middle to the end: «12345678Z» → «1234*****». */
 export function halfMask(value: string): string {
   const at = value.indexOf('@')
   if (at > 0) return halfMask(value.slice(0, at)) + value.slice(at)
   const chars = [...value]
   const visible = chars.filter((c) => !/\s/.test(c)).length
   if (visible <= 2) return chars.map((c) => (/\s/.test(c) ? c : '*')).join('')
-  const keepStart = Math.floor((visible - 1) / 2)
+  const keep = Math.floor(visible / 2)
   let seen = 0
   return chars
     .map((c) => {
       if (/\s/.test(c)) return c
-      const index = seen++
-      return index < keepStart || index === visible - 1 ? c : '*'
+      return seen++ < keep ? c : '*'
     })
     .join('')
 }
@@ -46,7 +45,8 @@ export function isSensitiveField(el: Element): el is HTMLInputElement {
   // By tag, not instanceof: an iframe's inputs come from another window's HTMLInputElement.
   if (el.tagName !== 'INPUT' || !TEXT_TYPES.has((el as HTMLInputElement).type)) return false
   const input = el as HTMLInputElement
-  const names = [accessibleName(input), input.name, input.id, input.autocomplete].join(' ')
+  // Ids and names are often camelCase («codEquipo», «fechaValidez»): split them into words.
+  const names = [accessibleName(input), input.name, input.id, input.autocomplete].join(' ').replace(/([a-z])([A-Z])/g, '$1 $2')
   return SENSITIVE_NAME.test(names) || SENSITIVE_VALUE.some((shape) => shape.test(input.value))
 }
 
