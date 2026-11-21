@@ -21,7 +21,7 @@ export function parseMessages(body: unknown): InputMessage[] {
 }
 
 export async function requestAnswer(options: {
-  apiKey: string; model: string; maps: unknown[]; messages: InputMessage[]; signal: AbortSignal; fetcher?: typeof fetch
+  apiKey: string; model: string; serviceTier?: string; maps: unknown[]; messages: InputMessage[]; signal: AbortSignal; fetcher?: typeof fetch
 }): Promise<string> {
   const response = await (options.fetcher ?? fetch)('https://api.openai.com/v1/responses', {
     method: 'POST',
@@ -29,6 +29,7 @@ export async function requestAnswer(options: {
     signal: options.signal,
     body: JSON.stringify({
       model: options.model,
+      ...(options.serviceTier ? { service_tier: options.serviceTier } : {}),
       store: false,
       max_output_tokens: 2500,
       instructions: `Eres el asistente de trámites de esta web. Responde en el idioma de la persona, con pasos claros.
@@ -60,7 +61,13 @@ function errorResponse(response: ServerResponse, status: number, message: string
   response.end(message)
 }
 
+/** The model and processing tier for every OpenAI call. Ultrafast unless OPENAI_SERVICE_TIER says otherwise (empty: OpenAI's default). */
+export function openaiSettings(env: Record<string, string | undefined>): { model: string; serviceTier?: string } {
+  return { model: env.OPENAI_MODEL || 'gpt-6.2-sol', serviceTier: (env.OPENAI_SERVICE_TIER ?? 'ultrafast').trim() || undefined }
+}
+
 export function chatApi(env: Record<string, string | undefined>, mapsDirectory: string): Plugin {
+  const openai = openaiSettings(env)
   const middleware = async (request: IncomingMessage, response: ServerResponse, next: () => void) => {
     const route = request.url?.split('?')[0]
     if (route !== '/api/chat' && route !== '/api/extension') { next(); return }
@@ -93,7 +100,7 @@ export function chatApi(env: Record<string, string | undefined>, mapsDirectory: 
         chunks.push(buffer)
       }
       const body: unknown = JSON.parse(Buffer.concat(chunks).toString('utf8'))
-      if (extension) agentBody = extensionRequest(body, env.OPENAI_MODEL || 'gpt-6.2-sol')
+      if (extension) agentBody = extensionRequest(body, openai.model, openai.serviceTier)
       else messages = parseMessages(body)
     } catch {
       errorResponse(response, 400, 'Conversación no válida o demasiado larga.'); return
@@ -121,7 +128,7 @@ export function chatApi(env: Record<string, string | undefined>, mapsDirectory: 
       }
       const files = (await readdir(mapsDirectory)).filter(file => file.endsWith('.json')).sort()
       const maps = await Promise.all(files.map(async file => JSON.parse(await readFile(path.join(mapsDirectory, file), 'utf8'))))
-      const text = await requestAnswer({ apiKey: key, model: env.OPENAI_MODEL || 'gpt-6.2-sol', maps, messages, signal: controller.signal })
+      const text = await requestAnswer({ apiKey: key, ...openai, maps, messages, signal: controller.signal })
       if (!response.destroyed) {
         response.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' })
         response.end(text)

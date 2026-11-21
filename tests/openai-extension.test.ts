@@ -12,8 +12,9 @@ describe('local OpenAI extension bridge', () => {
       { role: 'user', content: 'vida laboral' },
       { role: 'assistant', content: [{ type: 'tool_use', id: 'call1', name: 'find_procedure', input: { query: 'vida laboral' } }] },
       { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'call1', content: 'map result' }] },
-    ] }, 'server-model')
+    ] }, 'server-model', 'ultrafast')
     expect(body.model).toBe('server-model')
+    expect(body.service_tier).toBe('ultrafast')
     expect(body.store).toBe(false)
     expect(body.input[1]).toMatchObject({ type: 'function_call', call_id: 'call1', arguments: '{"query":"vida laboral"}' })
     expect(body.input[2]).toEqual({ type: 'function_call_output', call_id: 'call1', output: 'map result' })

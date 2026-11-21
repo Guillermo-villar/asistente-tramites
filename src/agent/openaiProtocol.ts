@@ -27,8 +27,11 @@ function openaiTool(raw: z.infer<typeof request>['tools'][number]): Record<strin
   return null
 }
 
-/** Adapt the existing tool loop; all page permissions remain enforced in tools/content.ts. */
-export function extensionRequest(raw: unknown, model: string) {
+/**
+ * Adapt the existing tool loop; all page permissions remain enforced in tools/content.ts. `serviceTier`
+ * is OpenAI's processing tier (`ultrafast`, `fast`…); left out, OpenAI uses the project's default.
+ */
+export function extensionRequest(raw: unknown, model: string, serviceTier?: string) {
   const body = request.parse(raw)
   const input: Record<string, unknown>[] = []
   for (const message of body.messages) {
@@ -44,7 +47,7 @@ export function extensionRequest(raw: unknown, model: string) {
     }
   }
   return {
-    model, store: false, max_output_tokens: 4000,
+    model, ...(serviceTier ? { service_tier: serviceTier } : {}), store: false, max_output_tokens: 4000,
     instructions: typeof body.system === 'string' ? body.system : body.system.map(part => part.text).join('\n'),
     input,
     tools: body.tools.map(openaiTool).filter(tool => tool !== null),
