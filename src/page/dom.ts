@@ -197,17 +197,19 @@ function iconHint(el: Element): string | null {
 }
 
 export function accessibleName(el: Element, useText = true): string {
+  // A submit input's value is its caption, not something the person typed. It must win over the label of
+  // the field next to it (nearbyLabel), or «Enviar datos» would be read as «Código de Seguridad».
+  const caption = el instanceof HTMLInputElement && ['submit', 'button', 'reset'].includes(el.type) ? el.value : null
   const candidates = [
     el.getAttribute('aria-label'),
     labelledBy(el),
+    caption,
     el.id ? Array.from(el.ownerDocument.querySelectorAll('label')).find((label) => label.htmlFor === el.id)?.textContent : null,
     FORM_TAGS.has(el.tagName) ? el.closest('label')?.textContent : null,
     FORM_TAGS.has(el.tagName) || isCustomSelect(el) ? nearbyLabel(el) : null,
     el.getAttribute('placeholder'),
     el.getAttribute('title'),
     el.getAttribute('alt'),
-    // A submit input's value is its caption, not something the person typed.
-    el instanceof HTMLInputElement && ['submit', 'button', 'reset'].includes(el.type) ? el.value : null,
     FORM_TAGS.has(el.tagName) || isCustomSelect(el) || el.getAttribute('contenteditable') === 'true' || !useText ? null : el.textContent,
     el.getAttribute('name'),
     isInteractive(el) ? iconHint(el) : null,

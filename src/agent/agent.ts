@@ -12,6 +12,7 @@ import type {
 import { SYSTEM_PROMPT } from './prompt'
 import { TOOL_DEFS, runTool } from './tools'
 import type { ToolHost, ToolOutcome, ToolState } from './tools'
+import { LocalApiError } from './localClient'
 
 // The agent loop, run in the side panel with the person's own API key. It streams one model turn, runs
 // the tools it asked for, sends the results back, and repeats until the model ends its turn.
@@ -132,7 +133,7 @@ export async function runTurn(opts: {
       if (signal?.aborted) return { stop: 'aborted', pointed }
       // API errors (auth, rate limit, overload) go to the panel. Anything else here is a tool input the
       // SDK could not parse; the block never completed, so the turn is re-issued, a couple of times at most.
-      if (err instanceof Anthropic.APIError || retries >= MAX_STREAM_RETRIES) throw err
+      if (err instanceof Anthropic.APIError || err instanceof LocalApiError || retries >= MAX_STREAM_RETRIES) throw err
       retries += 1
       step -= 1
       continue

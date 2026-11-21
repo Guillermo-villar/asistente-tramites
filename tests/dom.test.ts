@@ -2,6 +2,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { Registry, guidedClick, readOutline, readTable, redact } from '../src/page/dom'
 import { clearGuide, guideShown, showGuide } from '../src/page/guide'
+import { PLUGINS } from '../src/plugins/registry'
 import type { PolicyContext } from '../src/policy'
 
 const CTX: PolicyContext = { officialHosts: ['citapreviadnie.es', 'casa47.es'], userOnly: ['Reservar'] }
@@ -172,5 +173,48 @@ describe('guide highlight', () => {
     clearGuide()
     expect(document.getElementById('asistente-tramites-guide')).toBeNull()
     expect(guideShown()).toBe(false)
+  })
+})
+
+describe('cita previa DNI form («Acceso con datos DNI/NIE»)', () => {
+  const dni = PLUGINS.find((p) => p.id === 'cita-dni')!
+  const DNI_CTX: PolicyContext = { officialHosts: dni.domains, userOnly: dni.user_only ?? [] }
+  const FORM = `
+    <h1>Cita Previa DNI</h1>
+    <a href="https://www.citapreviadnie.es/citaPreviaDni/Acceso.action">Acceso con datos DNI/NIE</a>
+    <form action="https://www.citapreviadnie.es/citaPreviaDni/Enviar.action" method="post">
+      <label for="numDocumento">Número de Documento</label><input id="numDocumento" type="text" value="12345678" />
+      <label for="letraDocumento">Letra</label><input id="letraDocumento" type="text" value="Z" />
+      <label for="codEquipo">Equipo de Expedición</label><input id="codEquipo" type="text" />
+      <label for="fechaValidez">Fecha de Validez</label><input id="fechaValidez" type="text" />
+      <label for="numSoporte">Número de Soporte</label><input id="numSoporte" type="text" />
+      <label for="codSeguridad">Código de Seguridad</label><input id="codSeguridad" type="text" value="x7Kq" />
+      <input type="submit" value="Enviar datos" />
+    </form>`
+
+  it('classifies every control as the map promises, without leaking values', () => {
+    document.body.innerHTML = FORM
+    const { outline, classes } = readOutline(document, new Registry(), DNI_CTX)
+    const cls = (name: string) => classes[refOf(outline, name)]
+    expect(cls('Acceso con datos DNI/NIE')).toBe('nav')
+    for (const field of ['Número de Documento', 'Letra', 'Equipo de Expedición', 'Fecha de Validez', 'Número de Soporte', 'Código de Seguridad']) {
+      expect(cls(field)).toBe('field')
+    }
+    expect(cls('Enviar datos')).toBe('action')
+    expect(outline).not.toContain('12345678')
+    expect(outline).not.toContain('x7Kq')
+  })
+
+  it('names a submit input by its caption, not by the field before it', () => {
+    document.body.innerHTML = FORM
+    const { outline } = readOutline(document, new Registry(), DNI_CTX)
+    expect(outline).toMatch(/\[e\d+\] button "Enviar datos"/)
+  })
+
+  it('does not let the assistant press «Enviar datos»', () => {
+    document.body.innerHTML = FORM
+    const registry = new Registry()
+    const { outline } = readOutline(document, registry, DNI_CTX)
+    expect(guidedClick(registry, refOf(outline, 'Enviar datos'), DNI_CTX)).toMatchObject({ ok: false, refused: 'action' })
   })
 })

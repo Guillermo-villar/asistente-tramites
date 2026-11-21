@@ -3,6 +3,7 @@ import type { BetaMessageParam } from '@anthropic-ai/sdk/resources/beta/messages
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent, KeyboardEvent } from 'react'
 import { createClient, runTurn } from '../agent/agent'
+import { createLocalClient } from '../agent/localClient'
 import type { TurnResult } from '../agent/agent'
 import { activeTab, chromeBrowser, clearHighlight } from '../agent/chromeBrowser'
 import { ToolState } from '../agent/tools'
@@ -20,7 +21,7 @@ import { newId } from './conversation'
 import type { Item } from './conversation'
 import { BUILD, downloadLog, record, setTranscriptSource } from './debugLog'
 import { renderMarkdown } from './markdown'
-import { DEFAULTS, EFFORTS, MODELS, THEMES, loadApiKey, loadSettings, saveApiKey, saveSettings } from './settings'
+import { DEFAULTS, EFFORTS, MODELS, PROVIDERS, THEMES, loadApiKey, loadSettings, saveApiKey, saveSettings } from './settings'
 import type { Settings } from './settings'
 import { dropSiteAccess, loadApprovedHosts, requestSiteAccess, saveApprovedHosts } from './sites'
 
@@ -109,7 +110,7 @@ function SiteBar({ tab, approved }: { tab: Tab | null; approved: string[] }) {
   )
 }
 
-function Onboarding({ onSave }: { onSave: (key: string) => void }) {
+function Onboarding({ onSave, onUseOpenAI }: { onSave: (key: string) => void; onUseOpenAI: () => void }) {
   const [key, setKey] = useState('')
   const submit = (event: FormEvent) => {
     event.preventDefault()
@@ -142,6 +143,12 @@ function Onboarding({ onSave }: { onSave: (key: string) => void }) {
       <button className="primary wide" type="submit" disabled={!key.trim()}>
         Guardar y empezar
       </button>
+      <button className="wide" type="button" onClick={onUseOpenAI}>
+        Usar OpenAI con el servidor local
+      </button>
+      <p className="small muted">
+        Sin clave en el navegador: la clave de OpenAI está en web/.env.local y el servidor se arranca con npm run dev en la carpeta web.
+      </p>
       <p className="privacy small muted">
         <strong>Privacidad.</strong> La clave se guarda solo en este navegador. El asistente envía al modelo el texto de las páginas oficiales que lee, nunca lo que escribes
         en los formularios: solo sabe si un campo está «rellenado» o «vacío». Los DNI, NIE, IBAN, números de la Seguridad Social, correos y móviles de la página se ocultan
@@ -260,6 +267,8 @@ export function App() {
   const siteAnswers = useRef(new Map<string, (approved: boolean) => void>())
   const logEnd = useRef<HTMLDivElement | null>(null)
   const tab = useActiveTab()
+  // OpenAI goes through the local server, which holds its own key: no key is needed in the panel.
+  const usable = settings.provider === 'openai' || !!apiKey
 
   const setApprovedHosts = useCallback((hosts: string[]) => {
     approvedRef.current = hosts
@@ -298,7 +307,7 @@ export function App() {
   const send = useCallback(
     async (text: string) => {
       const message = text.trim()
-      if (!message || running || !apiKey) return
+      if (!message || running || !usable) return
       if (message === DONE_MESSAGE) await clearHighlight()
       setDraft('')
       setAwaitingDone(false)
@@ -311,7 +320,7 @@ export function App() {
       const assistantIds = new Map<number, string>()
       try {
         const result = await runTurn({
-          client: createClient(apiKey),
+          client: settings.provider === 'openai' ? createLocalClient() : createClient(apiKey),
           model: settings.model,
           effort: settings.effort,
           history: history.current,
@@ -377,7 +386,7 @@ export function App() {
         )
       }
     },
-    [apiKey, running, settings.effort, settings.model],
+    [apiKey, usable, running, settings.effort, settings.model, settings.provider],
   )
 
   // A task handed over from the website (src/handoff.ts): when the panel is on the tab the background
@@ -385,7 +394,7 @@ export function App() {
   // panel that was already open when the hand-off arrived.
   const tabId = tab?.id
   useEffect(() => {
-    if (!ready || !apiKey || running || tabId === undefined) return
+    if (!ready || !usable || running || tabId === undefined) return
     const key = pendingKey(tabId)
     const check = async () => {
       const task = (await chrome.storage.session.get(key))[key] as PendingTask | undefined
@@ -400,7 +409,7 @@ export function App() {
     }
     chrome.storage.onChanged.addListener(onChanged)
     return () => chrome.storage.onChanged.removeListener(onChanged)
-  }, [ready, apiKey, running, tabId, send])
+  }, [ready, usable, running, tabId, send])
 
   const answer = (id: string, value: string) => {
     patch(id, { answer: value })
@@ -450,7 +459,7 @@ export function App() {
 
   if (!ready) return <div className="app" />
 
-  if (!apiKey) {
+  if (!usable) {
     return (
       <div className="app">
         <header className="top">
@@ -461,6 +470,7 @@ export function App() {
             setApiKey(key)
             void saveApiKey(key)
           }}
+          onUseOpenAI={() => update({ ...settings, provider: 'openai' })}
         />
       </div>
     )
@@ -479,8 +489,21 @@ export function App() {
       {showSettings && (
         <section className="settings" aria-label="Ajustes">
           <label>
+            Proveedor
+            <select value={settings.provider} onChange={(e) => update({ ...settings, provider: e.target.value as Settings['provider'] })}>
+              {PROVIDERS.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          {settings.provider === 'openai' && (
+            <p className="small muted">El modelo de OpenAI se elige en web/.env.local (OPENAI_MODEL). Mantén arrancado npm run dev en la carpeta web.</p>
+          )}
+          <label>
             Modelo
-            <select value={settings.model} onChange={(e) => update({ ...settings, model: e.target.value as Settings['model'] })}>
+            <select disabled={settings.provider === 'openai'} value={settings.model} onChange={(e) => update({ ...settings, model: e.target.value as Settings['model'] })}>
               {MODELS.map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.label}: {m.note}
@@ -490,7 +513,7 @@ export function App() {
           </label>
           <label>
             Esfuerzo
-            <select value={settings.effort} onChange={(e) => update({ ...settings, effort: e.target.value as Settings['effort'] })}>
+            <select disabled={settings.provider === 'openai'} value={settings.effort} onChange={(e) => update({ ...settings, effort: e.target.value as Settings['effort'] })}>
               {EFFORTS.map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.label}

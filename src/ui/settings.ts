@@ -1,16 +1,25 @@
 import type { Effort, ModelId } from '../agent/agent'
 
+/** `anthropic`: Claude with the person's own key, from the panel. `openai`: OpenAI through the local
+ *  server in web/ (npm run dev), which keeps the key in web/.env.local; the panel holds no key. */
+export type Provider = 'anthropic' | 'openai'
+
 export type Settings = {
+  provider: Provider
   model: ModelId
   effort: Effort
   theme: 'system' | 'light' | 'dark'
 }
 
-export const DEFAULTS: Settings = { model: 'claude-opus-5-5', effort: 'medium', theme: 'system' }
+export const DEFAULTS: Settings = { provider: 'anthropic', model: 'claude-opus-5-5', effort: 'medium', theme: 'system' }
 export const MODELS: { id: ModelId; label: string; note: string }[] = [
   { id: 'claude-opus-5-5', label: 'Claude Opus 5.5', note: 'el más capaz (recomendado)' },
   { id: 'claude-sonnet-5-5', label: 'Claude Sonnet 5.5', note: 'más rápido y barato' },
   { id: 'claude-haiku-5-5', label: 'Claude Haiku 5.5', note: 'el más rápido y barato' },
+]
+export const PROVIDERS: { id: Provider; label: string }[] = [
+  { id: 'anthropic', label: 'Claude (tu clave de API)' },
+  { id: 'openai', label: 'OpenAI (servidor local)' },
 ]
 export const EFFORTS: { id: Effort; label: string }[] = [
   { id: 'low', label: 'Bajo' },
@@ -32,6 +41,7 @@ export async function loadSettings(): Promise<Settings> {
   const stored = (await chrome.storage.local.get(KEY))[KEY] as Partial<Settings> | undefined
   const merged = { ...DEFAULTS, ...stored }
   if (!MODELS.some((m) => m.id === merged.model)) merged.model = DEFAULTS.model
+  if (!PROVIDERS.some((p) => p.id === merged.provider)) merged.provider = DEFAULTS.provider
   return merged
 }
 

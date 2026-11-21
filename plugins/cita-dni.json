@@ -12,9 +12,12 @@
     "En la página de inicio el enlace «CONTINUAR» lleva a la solicitud; el asistente puede pulsarlo.",
     "La propia web avisa de que la app MiDNI no necesita cita para el registro en los Puestos de Actualización de Documentos (PAD).",
     "Si la persona tiene dudas de su caso, la web ofrece el correo sac@policia.es para consultas sobre la cita previa.",
-    "Mapa en borrador: las direcciones respondieron el 2026-11-21, pero nadie ha recorrido una reserva completa. Las pantallas tras «CONTINUAR» no se han comprobado: fíate de la página."
+    "Nunca pidas ni repitas el número de DNI, la letra, el equipo de expedición, la fecha de validez, el número de soporte ni el código de seguridad. La persona los escribe en la web sin decirlos en el chat.",
+    "El código de seguridad es un CAPTCHA: no lo leas, no lo resuelvas ni lo comentes. La web ofrece «Modo audio» como alternativa y se lo puedes recordar a la persona.",
+    "Pulsar «Continuar» o «Enviar datos» no significa que haya una cita. Solo hay cita cuando la web muestra una confirmación explícita.",
+    "Mapa en borrador: las direcciones respondieron el 2026-11-21 y se han observado la portada, la pantalla de acceso y los campos del formulario «Acceso con datos DNI/NIE» (accesibilidad del navegador), sin enviarlo. Las pantallas tras «Enviar datos» no se han comprobado: fíate de la página. Si una pantalla no coincide con lo descrito, vuelve a leerla y no inventes el botón."
   ],
-  "user_only": ["Aceptar", "Confirmar", "Reservar", "Anular", "Anular cita", "Validar"],
+  "user_only": ["Enviar datos", "Aceptar", "Confirmar", "Reservar", "Anular", "Anular cita", "Validar"],
   "procedures": [
     {
       "id": "pedir-cita",
@@ -22,11 +25,12 @@
       "summary": "Reservar cita en una oficina de expedición de la Policía Nacional para sacar o renovar el DNI o el pasaporte.",
       "keywords": ["cita dni", "cita previa dni", "renovar dni", "renovar el dni", "dni caducado", "sacar el dni", "cita pasaporte", "renovar pasaporte", "pasaporte", "primer dni", "dni perdido", "dni robado"],
       "entry_url": "https://www.citapreviadnie.es/citaPreviaDni/",
-      "login": ["sin_identificacion"],
+      "login": ["datos_documento"],
       "you_need": [
-        "El DNI o los datos que pida la web para identificarse (normalmente el número de DNI y algún dato del propio documento); compruébalo en la pantalla",
+        "El DNI físico a mano: hay que copiar datos de él (número, letra, equipo de expedición, fecha de validez y, si es DNI electrónico, número de soporte)",
         "Saber si es DNI o pasaporte, y si es renovación, primera vez, pérdida o robo",
-        "La provincia u oficina donde quiere ir"
+        "La provincia u oficina donde quiere ir",
+        "Poder oír o ver un código de seguridad (la web ofrece modo audio)"
       ],
       "steps": [
         {
@@ -37,10 +41,39 @@
           "user_only": ["Aceptar"]
         },
         {
-          "title": "Identificarse",
-          "guidance": "La web pide datos del documento. Lee qué campos hay y señala cada uno con una instrucción corta. No pidas ni repitas los datos en el chat.",
-          "person_does": "Escribe los datos que pide la web y pulsa el botón para seguir.",
-          "user_only": ["Aceptar", "Validar", "Continuar"]
+          "title": "Forma de acceso",
+          "guidance": "Si la persona tiene el DNI a mano, abre «Acceso con datos DNI/NIE» (enlace de navegación). Si prefiere DNI electrónico, NIE o pérdida/sustracción, avísale de que esas ramas no están mapeadas y guíate por la página."
+        },
+        {
+          "title": "Número y letra del documento",
+          "guidance": "Señala el campo «Número de Documento» (id observado: numDocumento) y después «Letra» (letraDocumento). Los ids son solo una pista: señala siempre con la referencia de read_page, y solo si hay una única coincidencia visible. Di cuál es cada campo sin pedir que dicten el dato. Avanza solo cuando la persona pulse «Hecho, sigue»; no leas el valor ni asumas que se ha validado.",
+          "person_does": "Escribe el número y la letra de su DNI en la web, sin decirlos en el chat."
+        },
+        {
+          "title": "Equipo de expedición",
+          "guidance": "Señala «Equipo de Expedición» (codEquipo). Explica que está impreso en el documento; la página trae una imagen de ayuda y una variante para DNI 4.0 («Cambiar a DNI 4.0»).",
+          "person_does": "Busca el equipo en su documento y lo escribe."
+        },
+        {
+          "title": "Fecha de validez",
+          "guidance": "Señala «Fecha de Validez» (fechaValidez). El formato es día/mes/año con barras; la web también admite PERMANENTE.",
+          "person_does": "Escribe la fecha de validez de su DNI."
+        },
+        {
+          "title": "Número de soporte",
+          "guidance": "Señala «Número de Soporte» (numSoporte). Es el identificador del soporte físico del documento, distinto del número de DNI. La cabecera de la web dice que todos los campos son obligatorios, pero el soporte se describe solo para el DNI electrónico: indícaselo y remite a la imagen de ayuda de la página sin afirmar nada más.",
+          "person_does": "Escribe el número de soporte si su documento lo tiene (DNI electrónico)."
+        },
+        {
+          "title": "Código de seguridad",
+          "guidance": "Señala «Código de Seguridad» (codSeguridad). No leas, resuelvas ni comentes el código. Recuerda que existe «Modo audio» en la web.",
+          "person_does": "Completa el código de seguridad con los controles de la propia web."
+        },
+        {
+          "title": "Enviar los datos",
+          "guidance": "Cuando la persona haya revisado los datos, señala «Enviar datos» y explica que al pulsarlo la web los comprobará. No lo pulses tú. Después lee la página de nuevo: la pantalla siguiente no está verificada, así que no anticipes lo que aparecerá.",
+          "person_does": "Revisa los datos y pulsa ella «Enviar datos».",
+          "user_only": ["Enviar datos"]
         },
         {
           "title": "Elegir trámite, oficina, día y hora",
@@ -53,6 +86,9 @@
           "person_does": "Confirma la cita y guarda el justificante.",
           "user_only": ["Confirmar", "Reservar"]
         }
+      ],
+      "notes": [
+        "El resaltado de los campos del formulario no se ha probado aún en Chrome con la extensión."
       ]
     },
     {

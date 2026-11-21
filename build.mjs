@@ -81,7 +81,8 @@ async function manifest() {
     side_panel: { default_path: 'sidepanel.html' },
     background: { service_worker: 'background.js', type: 'module' },
     permissions: ['sidePanel', 'storage', 'scripting', 'tabs'],
-    host_permissions: [...hosts, 'https://api.anthropic.com/*'],
+    // The local server in web/ (npm run dev) for the OpenAI provider (src/agent/localClient.ts).
+    host_permissions: [...hosts, 'https://api.anthropic.com/*', 'http://127.0.0.1:5173/*'],
     optional_host_permissions: ['https://*/*'],
     content_scripts: [{ matches: (await webOrigins()).map((o) => `${o}/*`), js: ['bridge.js'], run_at: 'document_start' }],
   }

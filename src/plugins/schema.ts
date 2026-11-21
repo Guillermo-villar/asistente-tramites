@@ -5,7 +5,8 @@ import { z } from 'zod'
 // may press. The assistant reads it before it moves; the extension enforces the parts that matter
 // (hosts, controls) in code. Maps live in plugins/*.json. See docs/plugins.md.
 
-export const LOGIN_METHODS = ['clave', 'clave_pin', 'clave_permanente', 'certificado', 'dnie', 'referencia', 'sms', 'sin_identificacion'] as const
+export const LOGIN_METHODS = ['clave', 'clave_pin', 'clave_permanente', 'certificado', 'dnie', 'referencia', 'sms', 'sin_identificacion', 'datos_documento'] as const
+// `datos_documento`: the person types data printed on their own ID card (cita previa DNI), no account or PIN.
 
 const kebab = z.string().regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, 'kebab-case')
 const httpsUrl = z.url({ protocol: /^https$/ })
