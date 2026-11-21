@@ -1,11 +1,10 @@
-import { MARK_BUBBLE, MARK_SPARK } from '../mark'
+// Use the website's mark as the source of truth for both interfaces.
+import { ESCUDO_PATHS, ESCUDO_RATIO, ESCUDO_VIEWBOX } from '../../web/src/components/brand/escudo-paths'
 
-// The mark fills with `currentColor`, so `--brand-mark` can tint it per theme.
 export function BrandMark({ size = 20, className }: { size?: number; className?: string }) {
   return (
-    <svg className={className} width={size} height={(size * 82) / 84} viewBox="0 0 84 82" fill="currentColor" aria-hidden="true">
-      <path fillRule="evenodd" d={MARK_BUBBLE} />
-      <path className="mark-spark" d={MARK_SPARK} />
+    <svg className={className} width={Math.round(size * ESCUDO_RATIO)} height={size} viewBox={ESCUDO_VIEWBOX} fill="currentColor" aria-hidden="true">
+      {ESCUDO_PATHS.map((d, i) => <path key={i} fillRule="evenodd" d={d} />)}
     </svg>
   )
 }
@@ -13,10 +12,10 @@ export function BrandMark({ size = 20, className }: { size?: number; className?:
 export function BrandLockup() {
   return (
     <span className="brand-lockup">
-      <BrandMark />
+      <BrandMark size={38} />
       <span className="brand-name">
-        <span className="brand-org">Asistente</span>
-        <span className="brand-product">de trámites</span>
+        <span className="brand-org">Asistente de</span>
+        <span className="brand-product">Trámites</span>
       </span>
     </span>
   )

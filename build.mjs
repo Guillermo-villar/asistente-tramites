@@ -27,11 +27,11 @@ const entries = [
   { entryPoints: ['src/web/bridge.ts'], outfile: `${outdir}/bridge.js`, format: 'iife' },
 ]
 
-/** The logo (public/logo.svg), drawn in dark indigo on a transparent background. */
+/** Use the website mark for the browser toolbar and extension listing too. */
 async function icon(size) {
-  const logo = await readFile('public/logo.svg', 'utf8')
-  // No tile behind it, so the mark can fill the square: 116 wide leaves a 6px margin at 128.
-  const inner = logo.replace(/<svg/, '<svg x="6" y="7" width="116" height="113.2"').replace(/fill="#[0-9a-fA-F]+"/, 'fill="#2b3a67"')
+  const logo = await readFile('web/public/favicon.svg', 'utf8')
+  // Keep the website escudo proportions with a small transparent margin.
+  const inner = logo.replace(/<svg/, '<svg x="10" y="6" width="108" height="116"')
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">${inner}</svg>`
   return new Resvg(svg, { fitTo: { mode: 'width', value: size } }).render().asPng()
 }
@@ -100,21 +100,12 @@ function safariManifest(manifest) {
   return out
 }
 
-const FONTS = 'node_modules/@fontsource/ibm-plex-sans/files'
-
 await rm(outdir, { recursive: true, force: true })
 await mkdir(`${outdir}/icons`, { recursive: true })
 await cp('public', outdir, { recursive: true })
 const built = await manifest()
 await writeFile(`${outdir}/manifest.json`, JSON.stringify(safari ? safariManifest(built) : built, null, 2) + '\n')
 for (const size of [16, 32, 48, 128]) await writeFile(`${outdir}/icons/icon${size}.png`, await icon(size))
-await mkdir(`${outdir}/fonts`, { recursive: true })
-for (const subset of ['latin', 'latin-ext']) {
-  for (const weight of [400, 500, 600, 700]) {
-    const file = `ibm-plex-sans-${subset}-${weight}-normal.woff2`
-    await cp(`${FONTS}/${file}`, `${outdir}/fonts/${file}`)
-  }
-}
 
 if (watch) {
   for (const entry of entries) {

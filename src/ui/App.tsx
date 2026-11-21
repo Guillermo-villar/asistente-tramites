@@ -15,7 +15,7 @@ import { pluginForUrl } from '../plugins/registry'
 import { hostOf, trustOf } from '../trust'
 import { Activity, LiveStatus } from './Activity'
 import { BrandLockup, BrandMark } from './Brand'
-import { IconCheck, IconClose, IconGlobe, IconSliders } from './Icons'
+import { IconCheck, IconClose, IconGlobe, IconSliders, IconSend, IconStop, IconLock } from './Icons'
 import { labelFor, toRows } from './activityRows'
 import { newId } from './conversation'
 import type { Item } from './conversation'
@@ -251,6 +251,8 @@ function Sources({ item }: { item: Extract<Item, { kind: 'sources' }> }) {
 
 export function App() {
   const [ready, setReady] = useState(false)
+  const [startupError, setStartupError] = useState<string | null>(null)
+  const [startupAttempt, setStartupAttempt] = useState(0)
   const [apiKey, setApiKey] = useState('')
   const [settings, setSettings] = useState<Settings>(DEFAULTS)
   const [showSettings, setShowSettings] = useState(false)
@@ -277,15 +279,24 @@ export function App() {
   }, [])
 
   useEffect(() => {
-    if (windowMode()) trackUserWindow()
-    void Promise.all([loadSettings(), loadApiKey(), loadApprovedHosts()]).then(([loaded, key, hosts]) => {
-      setSettings(loaded)
-      setApiKey(key)
-      approvedRef.current = hosts
-      setApproved(hosts)
-      setReady(true)
-    })
-  }, [])
+    let cancelled = false
+    setStartupError(null)
+    void (async () => {
+      try {
+        if (windowMode()) trackUserWindow()
+        const [loaded, key, hosts] = await Promise.all([loadSettings(), loadApiKey(), loadApprovedHosts()])
+        if (cancelled) return
+        setSettings(loaded)
+        setApiKey(key)
+        approvedRef.current = hosts
+        setApproved(hosts)
+        setReady(true)
+      } catch (error) {
+        if (!cancelled) setStartupError(error instanceof Error ? error.message : String(error))
+      }
+    })()
+    return () => { cancelled = true }
+  }, [startupAttempt])
 
   useEffect(() => {
     const root = document.documentElement
@@ -447,9 +458,11 @@ export function App() {
   }
 
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key === 'Enter' && !event.shiftKey) {
+    if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
       event.preventDefault()
-      void send(draft)
+      if (!running && event.currentTarget.value.trim()) {
+        event.currentTarget.form?.requestSubmit()
+      }
     }
   }
 
@@ -457,7 +470,21 @@ export function App() {
   const last = rows[rows.length - 1]
   const waitingOnPerson = last?.kind === 'ask' || (last?.kind === 'site' && !last.answer)
 
-  if (!ready) return <div className="app" />
+  if (!ready) return (
+    <div className="app">
+      <header className="top"><BrandLockup /></header>
+      <main className="onboarding">
+        {startupError ? (
+          <>
+            <h2>No se ha podido abrir el asistente</h2>
+            <p className="muted">Vuelve a intentarlo. Si acabas de actualizar la extensión, cierra el panel y ábrelo de nuevo.</p>
+            <p className="error" role="alert">{startupError}</p>
+            <button type="button" className="primary" onClick={() => setStartupAttempt((value) => value + 1)}>Reintentar</button>
+          </>
+        ) : <p role="status">Abriendo el asistente…</p>}
+      </main>
+    </div>
+  )
 
   if (!usable) {
     return (
@@ -481,6 +508,7 @@ export function App() {
       <header className="top">
         <BrandLockup />
         <span className="spacer" />
+        <button type="button" className="ghost new-chat" onClick={clearChat} title="Nueva conversación">Nueva</button>
         <button type="button" className="ghost icon" aria-label="Ajustes" aria-pressed={showSettings} onClick={() => setShowSettings((v) => !v)}>
           {showSettings ? <IconClose /> : <IconSliders />}
         </button>
@@ -579,14 +607,13 @@ export function App() {
       <main className="log" aria-live="polite">
         {rows.length === 0 && (
           <div className="empty">
-            <BrandMark size={32} className="empty-mark" />
+            <BrandMark size={48} className="empty-mark" />
             <h3>¿Qué trámite quieres hacer?</h3>
             <p className="muted">Cuéntamelo con tus palabras. Si no conozco la web, la busco y te pido permiso antes de abrirla.</p>
             <div className="starters">
               {STARTERS.map((starter) => (
-                <button key={starter.label} type="button" onClick={() => void send(starter.label)}>
+                <button key={starter.label} type="button" title={starter.hint} onClick={() => void send(starter.label)}>
                   <span>{starter.label}</span>
-                  <small>{starter.hint}</small>
                 </button>
               ))}
             </div>
@@ -644,20 +671,25 @@ export function App() {
         <textarea
           rows={2}
           value={draft}
-          placeholder="Escribe qué necesitas. No pongas datos personales."
+          placeholder="Escribe tu pregunta…"
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={onKeyDown}
           aria-label="Mensaje"
+          enterKeyHint="send"
+          title="Enter para enviar · Mayús+Enter para un salto de línea"
         />
-        {running ? (
-          <button type="button" onClick={() => abort.current?.abort()}>
-            Detener
-          </button>
-        ) : (
-          <button type="submit" className="primary" disabled={!draft.trim()}>
-            Enviar
-          </button>
-        )}
+        <div className="composer-footer">
+          <span className="composer-privacy"><IconLock /> Nada se envía sin tu confirmación</span>
+          {running ? (
+            <button type="button" className="primary send-button" aria-label="Detener" title="Detener" onClick={() => abort.current?.abort()}>
+              <IconStop />
+            </button>
+          ) : (
+            <button type="submit" className="primary send-button" aria-label="Enviar" title="Enviar (Enter)" disabled={!draft.trim()}>
+              <IconSend />
+            </button>
+          )}
+        </div>
       </form>
     </div>
   )

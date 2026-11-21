@@ -98,3 +98,15 @@ export function IconChevronsUpDown({ size = 16 }: IconProps) {
     </IconBase>
   )
 }
+
+export function IconSend({ size = 16 }: IconProps) {
+  return <IconBase size={size}><path d="M9 10l-5 5 5 5M4 15h12a4 4 0 0 0 4-4V4" /></IconBase>
+}
+
+export function IconStop({ size = 16 }: IconProps) {
+  return <IconBase size={size}><rect x="6" y="6" width="12" height="12" rx="1" /></IconBase>
+}
+
+export function IconLock({ size = 12 }: IconProps) {
+  return <IconBase size={size}><rect x="5" y="10" width="14" height="11" rx="2" /><path d="M8 10V6a4 4 0 0 1 8 0v4" /></IconBase>
+}
