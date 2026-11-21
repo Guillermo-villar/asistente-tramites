@@ -1,0 +1,6 @@
+node_modules/
+dist/
+dist-safari/
+safari/
+*.zip
+.DS_Store
