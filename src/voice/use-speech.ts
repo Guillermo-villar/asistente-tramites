@@ -34,7 +34,13 @@ export function useSpeech(options: SpeechOptions, api: string, worklet: string, 
     setPartial('')
     setPending([])
   }, [])
-  useEffect(() => () => active.current?.dispose(), [])
+  useEffect(() => () => {
+    active.current?.dispose()
+    // Fast Refresh also runs cleanup: don't leave a disconnected call labelled as connected.
+    setStatus('idle')
+    setPartial('')
+    setPending([])
+  }, [])
 
   useEffect(() => {
     if (status !== 'connected' || options.busy || sending.current || !pending.length) return
@@ -51,12 +57,11 @@ export function useSpeech(options: SpeechOptions, api: string, worklet: string, 
   }, [status, options.busy, pending])
 
   useEffect(() => {
-    if (status !== 'connected') return
+    if (status !== 'connected' || pending.length || !active.current) return
     for (const reply of options.replies) {
       if (seen.current.has(reply.id) || (!reply.ready && options.busy) || !reply.text.trim()) continue
       seen.current.add(reply.id)
-      // If another spoken turn is waiting, keep the answer in the chat but don't read over it.
-      if (!pending.length) active.current?.speak(reply.text)
+      active.current.speak(reply.text)
     }
   }, [status, options.replies, options.busy, pending.length])
 
@@ -76,11 +81,14 @@ export function useSpeech(options: SpeechOptions, api: string, worklet: string, 
     let speechQueue = Promise.resolve()
     let speechGeneration = 0
     let ready = false
+    let outputPlaying = false
+    let listenAfter = 0
     const interrupt = () => {
       speechGeneration++
       tts?.abort()
       source?.stop()
       source = undefined
+      outputPlaying = false
       speechQueue = Promise.resolve()
     }
     const dispose = () => {
@@ -116,12 +124,26 @@ export function useSpeech(options: SpeechOptions, api: string, worklet: string, 
           if (!response.ok) throw new Error('Speech failed')
           const buffer = await audio.decodeAudioData(await response.arrayBuffer())
           if (abort.signal.aborted || generation !== speechGeneration) return
+          // Browsers may suspend output after a tab has been in the background.
+          if (audio.state === 'suspended') await audio.resume()
+          if (abort.signal.aborted || generation !== speechGeneration) return
           const node = audio.createBufferSource()
           node.buffer = buffer
           node.connect(output)
           source = node
+          outputPlaying = true
+          setPartial('')
           await new Promise<void>(resolve => {
-            node.onended = () => { node.disconnect(); if (source === node) source = undefined; resolve() }
+            node.onended = () => {
+              node.disconnect()
+              if (source === node) {
+                source = undefined
+                outputPlaying = false
+                // Let acoustic echo and in-flight transcription events drain before listening again.
+                listenAfter = Date.now() + 600
+              }
+              resolve()
+            }
             node.start()
           })
         } catch {
@@ -157,7 +179,10 @@ export function useSpeech(options: SpeechOptions, api: string, worklet: string, 
       capture.port.onmessage = ({ data }: MessageEvent<ArrayBuffer>) => {
         if (!ready || connection.readyState !== WebSocket.OPEN) return
         if (connection.bufferedAmount > 256 * 1024) { fail('connection'); return }
-        connection.send(JSON.stringify({ message_type: 'input_audio_chunk', audio_base_64: btoa(String.fromCharCode(...new Uint8Array(data))), sample_rate: 24000 }))
+        // Keep the transcription connection alive with silence while reading. Otherwise loudspeakers
+        // feed the answer back into the microphone, which used to cancel its own playback.
+        const bytes = outputPlaying || Date.now() < listenAfter ? new Uint8Array(data.byteLength) : new Uint8Array(data)
+        connection.send(JSON.stringify({ message_type: 'input_audio_chunk', audio_base_64: btoa(String.fromCharCode(...bytes)), sample_rate: 24000 }))
       }
       const input = audio.createMediaStreamSource(mic)
       const inputMeter = audio.createAnalyser()
@@ -185,11 +210,10 @@ export function useSpeech(options: SpeechOptions, api: string, worklet: string, 
           setStatus('connected')
           callbacks.current.onGreeting(GREETING)
         } else if (event.message_type === 'partial_transcript' && event.text?.trim()) {
-          interrupt()
-          setPartial(event.text)
+          if (!outputPlaying && Date.now() >= listenAfter) setPartial(event.text)
         } else if (event.message_type === 'committed_transcript') {
           setPartial('')
-          if (event.text?.trim()) { interrupt(); setPending(queue => [...queue, event.text!.trim()]) }
+          if (!outputPlaying && Date.now() >= listenAfter && event.text?.trim()) { interrupt(); setPending(queue => [...queue, event.text!.trim()]) }
         } else if (event.error || event.message_type.endsWith('_error')) fail('connection')
       }
       connection.onerror = () => fail('connection')

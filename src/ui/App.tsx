@@ -749,7 +749,6 @@ export function App() {
           <VoiceOrb size={52} state={voice.status === 'connecting' ? 'connecting' : 'live'} getLevels={voice.getLevels} />
           <div className="voice-call-text">
             <p role="status">{voice.status === 'connecting' ? 'Conectando la voz…' : 'Voz de IA conectada. Puedes hablar.'}</p>
-            {voice.partial && <p role="status">{voice.partial}</p>}
             {voice.error && <p className="voice-error" role="alert">{VOICE_MESSAGES[voice.error]}</p>}
           </div>
           <button type="button" className="voice-hangup" aria-label="Finalizar conversación de voz" title="Finalizar conversación de voz" onClick={voice.stop}>

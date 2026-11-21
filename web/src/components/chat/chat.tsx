@@ -152,7 +152,6 @@ export function ChatPanel({ chat, className }: { chat: ChatHelpers; className?: 
           </button>
         </div>
       </PromptInputFooter>
-      {voice.partial && <p className="px-4 pb-3 text-sm text-muted-foreground" role="status">{voice.partial}</p>}
       {voice.error && <p className="px-4 pb-3 text-xs text-destructive" role="alert">{t.chat.voice[voice.error]}</p>}
     </PromptInput>
   );

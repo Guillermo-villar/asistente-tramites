@@ -33,12 +33,17 @@ describe('voice through the existing chat', () => {
     const node = () => ({connect:()=>node(), disconnect(){}, gain:{value:1}, fftSize:512, getFloatTimeDomainData(values: Float32Array){values.fill(0)}, port:{close(){},onmessage:null}})
     let socket: { onmessage?: (event: {data:string}) => void; close: ReturnType<typeof vi.fn> } | undefined
     const fetcher = vi.fn(async (url: string) => url.endsWith('/session') ? new Response(JSON.stringify({token:'temporary'})) : new Response(new Uint8Array([1])))
+    const play = vi.fn()
+    const stopAudio = vi.fn()
+    let emitEcho = () => {}
+    let now = 1000
+    page.window.Date.now = () => now
     class Audio {
       sampleRate=24000; state='running'; destination=node(); audioWorklet={addModule:async()=>{}}
       resume=async()=>{}; close=async()=>{this.state='closed'}
       createGain=node; createAnalyser=node; createMediaStreamSource=node
       decodeAudioData=async()=>({})
-      createBufferSource(){ const n = {...node(),buffer:null,onended:()=>{},start(){queueMicrotask(()=>n.onended())},stop(){n.onended()}};return n }
+      createBufferSource(){ const n = {...node(),buffer:null,onended:()=>{},start(){play();emitEcho();queueMicrotask(()=>n.onended())},stop(){stopAudio();n.onended()}};return n }
     }
     Object.assign(page.window, {inputs:[],permissionRequests:0,fetch:fetcher,AbortController,AbortSignal,AudioContext:Audio,AudioWorkletNode:class {constructor(){return node()}},WebSocket:class {
       static OPEN=1;readyState=1;bufferedAmount=0;close=vi.fn();send=vi.fn(); constructor(){socket=this}
@@ -50,23 +55,34 @@ describe('voice through the existing chat', () => {
     await vi.waitFor(()=>expect(w.voice).toBeDefined())
     await w.voice.start()
     const event = (message_type:string,text?:string)=>socket!.onmessage!({data:JSON.stringify({message_type,text})})
+    emitEcho = () => { event('partial_transcript', 'Eco de la respuesta'); event('committed_transcript', 'Eco de la respuesta') }
     event('session_started')
     await vi.waitFor(()=>expect(fetcher.mock.calls.some(([url])=>url.endsWith('/speak'))).toBe(true))
+    await vi.waitFor(()=>expect(play).toHaveBeenCalledTimes(1))
+    expect(stopAudio).not.toHaveBeenCalled()
+    now += 1000
     event('partial_transcript','Necesito')
     expect(w.inputs).toEqual([])
     event('committed_transcript','Necesito el DNI')
     await vi.waitFor(()=>expect(w.inputs).toEqual(['Necesito el DNI']))
-    w.complete()
-    await vi.waitFor(()=>expect(fetcher.mock.calls.filter(([url])=>url.endsWith('/speak')).length).toBe(2))
-    const calls = fetcher.mock.calls as unknown as [string,RequestInit][]
-    expect(calls.filter(([url])=>url.endsWith('/speak')).map(([,init])=>JSON.parse(init.body as string).text)).toEqual(['Hola, ¿qué trámite necesitas?','Chat: Necesito el DNI'])
+    // Another phrase arriving while the chat is busy must not permanently discard its spoken answer.
     event('committed_transcript','Siguiente turno')
+    w.complete()
     await vi.waitFor(()=>expect(w.inputs).toHaveLength(2))
+    w.complete()
+    await vi.waitFor(()=>expect(fetcher.mock.calls.filter(([url])=>url.endsWith('/speak')).length).toBe(3))
+    await vi.waitFor(()=>expect(play).toHaveBeenCalledTimes(3))
+    const calls = fetcher.mock.calls as unknown as [string,RequestInit][]
+    expect(calls.filter(([url])=>url.endsWith('/speak')).map(([,init])=>JSON.parse(init.body as string).text)).toEqual(['Hola, ¿qué trámite necesitas?','Chat: Necesito el DNI','Chat: Siguiente turno'])
+    expect(stopAudio).not.toHaveBeenCalled()
+    now += 1000
+    event('committed_transcript','Otro turno')
+    await vi.waitFor(()=>expect(w.inputs).toHaveLength(3))
     event('committed_transcript','Entrada pendiente')
     w.voice.stop()
     w.complete()
     await new Promise(resolve=>setTimeout(resolve,30))
-    expect(w.inputs).toHaveLength(2)
+    expect(w.inputs).toHaveLength(3)
     expect(tracks[0]!.stop).toHaveBeenCalled()
     expect(socket!.close).toHaveBeenCalled()
     w.allowed = false
