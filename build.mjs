@@ -71,12 +71,12 @@ async function manifest() {
   const hosts = domains.flatMap((d) => [`https://${d}/*`, `https://*.${d}/*`])
   return {
     manifest_version: 3,
-    name: 'Asistente de trámites',
-    short_name: 'Trámites',
+    name: 'OrientaT · Asistente de trámites',
+    short_name: 'OrientaT',
     description: 'Te guía por las webs de la Administración: te lleva a la página correcta y te señala lo que tienes que rellenar y pulsar tú.',
     version: pkg.version,
     minimum_chrome_version: '120',
-    action: { default_title: 'Asistente de trámites', default_icon: { 16: 'icons/icon16.png', 32: 'icons/icon32.png' } },
+    action: { default_title: 'OrientaT', default_icon: { 16: 'icons/icon16.png', 32: 'icons/icon32.png' } },
     icons: { 16: 'icons/icon16.png', 32: 'icons/icon32.png', 48: 'icons/icon48.png', 128: 'icons/icon128.png' },
     side_panel: { default_path: 'sidepanel.html' },
     background: { service_worker: 'background.js', type: 'module' },

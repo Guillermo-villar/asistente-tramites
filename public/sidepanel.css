@@ -338,23 +338,26 @@ div.stack {
   flex-direction: column;
   line-height: 1;
   font-family: var(--slab);
-  text-transform: uppercase;
 }
 
 .brand-org {
   font-size: 10px;
-  letter-spacing: 0.25em;
+  letter-spacing: 0.28em;
   text-transform: uppercase;
   color: var(--muted);
 }
 
+/* «OrientaT»: mixed case, the final T in brand red (it reads «oriéntate»). */
 .brand-product {
   font-weight: 700;
-  font-size: 15px;
-  letter-spacing: 0.18em;
-  margin-top: 5px;
+  font-size: 22px;
+  letter-spacing: 0.01em;
+  margin-top: 4px;
+  white-space: nowrap;
   color: var(--fg);
 }
+
+.brand-t { color: var(--accent); }
 
 .site {
   font-size: 13px;
@@ -970,7 +973,7 @@ div.stack {
 @media (max-width: 350px) {
   .top { gap: 4px; padding-inline: 12px; }
   .brand-lockup { gap: 8px; }
-  .brand-product { font-size: 13px; }
+  .brand-product { font-size: 18px; }
   .brand-org { font-size: 9px; }
   .top .new-chat { padding-inline: 4px; }
   .log { padding-inline: 16px; }

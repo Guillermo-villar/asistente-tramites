@@ -9,13 +9,16 @@ export function BrandMark({ size = 20, className }: { size?: number; className?:
   )
 }
 
+/** The website's lockup (web/src/components/brand/logo.tsx): the descriptor, then «OrientaT» with a red T. */
 export function BrandLockup() {
   return (
     <span className="brand-lockup">
       <BrandMark size={38} />
       <span className="brand-name">
-        <span className="brand-org">Asistente de</span>
-        <span className="brand-product">Trámites</span>
+        <span className="brand-org">Asistente de trámites</span>
+        <span className="brand-product">
+          Orienta<span className="brand-t">T</span>
+        </span>
       </span>
     </span>
   )
