@@ -1,4 +1,4 @@
-// The frame the person sees while the assistant works on this page: a coloured border around the whole
+// The frame the person sees while the assistant works on this page: a yellow border around the whole
 // window and a small label at the top, so it is clear the extension is reading and moving around. The
 // panel shows it while a turn runs and hides it when the turn ends («Te toca a ti»). It also expires by
 // itself unless the panel renews it, so a closed or crashed panel never leaves it behind. Like the cursor
@@ -13,8 +13,10 @@ const STYLE = `
 :host { all: initial; }
 .frame {
   position: fixed; inset: 0; pointer-events: none; z-index: 2147483645;
-  border: 3px solid #f20d0d; border-radius: 10px;
-  box-shadow: inset 0 0 18px rgba(242, 13, 13, 0.28), 0 0 0 1px rgba(255, 255, 255, 0.4);
+  /* The same yellow as the «Te toca a ti» highlight (guide.ts). */
+  border: 3px solid #e2b341; border-radius: 10px;
+  /* A glow inside every edge (the frame fills the window, so an outer shadow would be off screen). */
+  box-shadow: inset 0 0 28px 8px rgba(226, 179, 65, 0.45), inset 0 0 0 1px rgba(255, 255, 255, 0.5);
   opacity: 0; transition: opacity 0.25s ease;
 }
 .frame.on { opacity: 1; }
@@ -22,16 +24,16 @@ const STYLE = `
   position: fixed; top: 10px; left: 50%; transform: translateX(-50%);
   display: flex; align-items: center; gap: 8px; max-width: calc(100vw - 32px);
   padding: 6px 12px 6px 10px; border-radius: 999px;
-  background: #f20d0d; color: #fff; font: 600 12px/1.2 "Geist Variable", "IBM Plex Sans", system-ui, sans-serif;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25); white-space: nowrap;
+  background: #e2b341; color: #161b24; font: 600 12px/1.2 "Geist Variable", "IBM Plex Sans", system-ui, sans-serif;
+  box-shadow: 0 4px 16px rgba(226, 179, 65, 0.45), 0 1px 3px rgba(0, 0, 0, 0.2); white-space: nowrap;
 }
 .pill span { overflow: hidden; text-overflow: ellipsis; }
-.dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: #fff; }
+.dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: #161b24; }
 @media (prefers-reduced-motion: no-preference) {
   .frame.on { animation: breathe 2.4s ease-in-out infinite; }
   .dot { animation: blink 1.2s ease-in-out infinite; }
 }
-@keyframes breathe { 50% { box-shadow: inset 0 0 30px rgba(242, 13, 13, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.4); } }
+@keyframes breathe { 50% { box-shadow: inset 0 0 40px 12px rgba(226, 179, 65, 0.58), inset 0 0 0 1px rgba(255, 255, 255, 0.5); } }
 @keyframes blink { 50% { opacity: 0.35; } }
 `
 
