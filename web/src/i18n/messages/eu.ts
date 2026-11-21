@@ -4,7 +4,7 @@ import type { Messages } from "./es";
 export const eu: Messages = {
   meta: { title: "OrientaT · Izapideen laguntzailea", language: "Hizkuntza" },
   brand: { descriptor: "Izapideen laguntzailea" },
-  header: { extension: "Luzapena", installed: "Nabigatzaile honetan instalatuta" },
+  header: { extension: "Luzapena", installed: "Nabigatzaile honetan instalatuta", lightMode: "Modu argia", darkMode: "Modu iluna" },
   hero: {
     title: "Zer izapide egin behar duzu?",
     subtitle: "Galdetu zure hitzekin. Zer den, zer behar duzun eta non egin esango dizugu.",
@@ -74,6 +74,18 @@ export const eu: Messages = {
     placeholderEmpty: "Adibidez: etxez aldatu naiz eta erroldatu egin behar dut",
     placeholder: "Idatzi zure galdera…",
     footnote: "Ez da ezer bidaltzen zuk berretsi gabe",
+    voice: {
+      start: "Laguntzailearekin hitz egin",
+      stop: "Ahots bidezko elkarrizketa amaitu",
+      connecting: "Ahotsa konektatzen…",
+      connected: "AAren ahotsa konektatuta. Hitz egin dezakezu.",
+      unavailable: "Nabigatzaile honek ez du ahots bidezko elkarrizketarik abiarazten uzten.",
+      permission: "Baimendu mikrofonoa erabiltzea laguntzailearekin hitz egiteko.",
+      timeout: "Ahots-konexioak denbora gehiegi behar izan du. Saiatu berriro.",
+      connection: "Ezin izan da ahotsa abiarazi. Egiaztatu mikrofonoa eta saiatu berriro.",
+      response: "Ezin izan da ahots-erantzuna osatu.",
+      disconnected: "Ahots-konexioa itxi da.",
+    },
     title: "Izapideen laguntzailea",
     reset: "Berria",
     reading: "Zure kontsulta irakurtzen…",

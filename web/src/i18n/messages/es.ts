@@ -13,7 +13,7 @@ export const es = {
   meta: { title: "OrientaT · Asistente de trámites", language: "Idioma" },
   /** The name, OrientaT, is fixed in every language (see `Wordmark`); only the descriptor is translated. */
   brand: { descriptor: "Asistente de trámites" },
-  header: { extension: "La extensión", installed: "Instalada en este navegador" },
+  header: { extension: "La extensión", installed: "Instalada en este navegador", lightMode: "Modo claro", darkMode: "Modo oscuro" },
   hero: {
     title: "¿Qué trámite tienes que hacer?",
     subtitle: "Pregúntalo con tus palabras. Te decimos qué es, qué necesitas y dónde hacerlo.",
@@ -84,6 +84,18 @@ export const es = {
     placeholderEmpty: "Por ejemplo: me he mudado y tengo que empadronarme",
     placeholder: "Escribe tu pregunta…",
     footnote: "Nada se envía sin tu confirmación",
+    voice: {
+      start: "Hablar con el asistente",
+      stop: "Finalizar conversación de voz",
+      connecting: "Conectando la voz…",
+      connected: "Voz de IA conectada. Puedes hablar.",
+      unavailable: "Este navegador no permite iniciar una conversación de voz.",
+      permission: "Permite el acceso al micrófono para hablar con el asistente.",
+      timeout: "La conexión de voz tardó demasiado. Vuelve a intentarlo.",
+      connection: "No se pudo iniciar la voz. Comprueba el micrófono y vuelve a intentarlo.",
+      response: "No se pudo completar la respuesta de voz.",
+      disconnected: "Se cerró la conexión de voz.",
+    },
     title: "Asistente de trámites",
     reset: "Nueva",
     reading: "Leyendo tu consulta…",

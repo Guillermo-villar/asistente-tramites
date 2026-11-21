@@ -1,6 +1,6 @@
 import type { UseChatHelpers } from "@ai-sdk/react";
 import { getToolName, isToolUIPart, type UIMessage } from "ai";
-import { LockIcon, PuzzleIcon, RotateCcwIcon } from "lucide-react";
+import { LockIcon, MicIcon, PhoneOffIcon, PuzzleIcon, RotateCcwIcon } from "lucide-react";
 import {
   Conversation,
   ConversationContent,
@@ -22,6 +22,8 @@ import { Source, Sources, SourcesContent, SourcesTrigger } from "@/components/ai
 import type { ToolPart } from "@/components/ai-elements/tool";
 import { LogoMark } from "@/components/brand/logo";
 import { AskContext, ToolResultCard, UserWordsContext } from "@/components/chat/tool-cards";
+import { useVoiceSession } from "@/components/chat/use-voice-session";
+import { Button } from "@/components/ui/button";
 import { useI18n } from "@/i18n/i18n";
 import { cn } from "@/lib/utils";
 
@@ -34,6 +36,9 @@ export type ChatHelpers = UseChatHelpers<UIMessage>;
 export function ChatPanel({ chat, className }: { chat: ChatHelpers; className?: string }) {
   const { messages, sendMessage, status, stop, setMessages } = chat;
   const { t } = useI18n();
+  const voice = useVoiceSession();
+  const voiceActive = voice.status !== "idle";
+  const voiceLabel = voiceActive ? t.chat.voice.stop : t.chat.voice.start;
   // The first suggestion is about the extension, so it gets the puzzle icon.
   const sugerencias = t.chat.suggestions.map((text, i) => ({ text, icon: i === 0 ? PuzzleIcon : undefined }));
   const send = (text: string) => {
@@ -66,15 +71,33 @@ export function ChatPanel({ chat, className }: { chat: ChatHelpers; className?: 
       <PromptInputFooter className={cn(empty ? "px-4 pb-4" : "px-3 pb-3")}>
         <PromptInputTools>
           <span className="flex items-center gap-1.5 px-1 text-xs font-normal text-muted-foreground">
-            <LockIcon className="size-3" /> {t.chat.footnote}
+            {voiceActive ? (
+              <span role="status">{voice.status === "connecting" ? t.chat.voice.connecting : t.chat.voice.connected}</span>
+            ) : (
+              <><LockIcon className="size-3 shrink-0" /> {t.chat.footnote}</>
+            )}
           </span>
         </PromptInputTools>
-        <PromptInputSubmit
-          className="size-9 rounded-full bg-brand-red text-white hover:bg-brand-red/90"
-          onStop={stop}
-          status={status}
-        />
+        <div className="flex shrink-0 items-center gap-1">
+          <Button
+            aria-label={voiceLabel}
+            className="size-9 rounded-full"
+            onClick={voiceActive ? voice.stop : () => void voice.start()}
+            size="icon"
+            title={voiceLabel}
+            type="button"
+            variant={voiceActive ? "destructive" : "ghost"}
+          >
+            {voiceActive ? <PhoneOffIcon aria-hidden="true" /> : <MicIcon aria-hidden="true" />}
+          </Button>
+          <PromptInputSubmit
+            className="size-9 rounded-full bg-brand-red-solid text-white hover:bg-brand-red-solid/90"
+            onStop={stop}
+            status={status}
+          />
+        </div>
       </PromptInputFooter>
+      {voice.error && <p className="px-4 pb-3 text-xs text-destructive" role="alert">{t.chat.voice[voice.error]}</p>}
     </PromptInput>
   );
 
@@ -115,6 +138,7 @@ export function ChatPanel({ chat, className }: { chat: ChatHelpers; className?: 
               className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
               onClick={() => {
                 stop();
+                voice.stop();
                 setMessages([]);
               }}
               type="button"

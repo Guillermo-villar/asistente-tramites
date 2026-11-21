@@ -9,6 +9,7 @@
 
 @theme inline {
     --color-brand-red: var(--brand-red);
+    --color-brand-red-solid: var(--brand-red-solid);
     --color-brand-gold: var(--brand-gold);
     --color-brand-ink: var(--brand-ink);
     --color-status-action: var(--status-action);
@@ -63,6 +64,7 @@
 }
 
 :root {
+    color-scheme: light;
     /* Ink on white: a calm, public-service palette. Flag red and gold appear only as accents. */
     --background: oklch(1 0 0);
     --foreground: oklch(0.2 0.02 260);
@@ -100,6 +102,7 @@
     /* Brand: red / yellow / black, after the monoline, Correos-style vocabulary
        (red marks on white, yellow surfaces used sparingly, black type). */
     --brand-red: #f20d0d;
+    --brand-red-solid: var(--brand-red);
     --brand-gold: #ffe500;
     --brand-ink: #111111;
 
@@ -115,6 +118,7 @@
 }
 
 .dark {
+    color-scheme: dark;
     --background: oklch(0.145 0 0);
     --foreground: oklch(0.985 0 0);
     --card: oklch(0.205 0 0);
@@ -146,6 +150,9 @@
     --sidebar-accent-foreground: oklch(0.985 0 0);
     --sidebar-border: oklch(1 0 0 / 10%);
     --sidebar-ring: oklch(0.556 0 0);
+    --brand-red: #ff7878;
+    --brand-red-solid: #b91c27;
+    --status-done: oklch(0.81 0.12 155);
 }
 
 @layer base {

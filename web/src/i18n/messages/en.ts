@@ -4,7 +4,7 @@ import type { Messages } from "./es";
 export const en: Messages = {
   meta: { title: "OrientaT · Procedures assistant", language: "Language" },
   brand: { descriptor: "Procedures assistant" },
-  header: { extension: "The extension", installed: "Installed in this browser" },
+  header: { extension: "The extension", installed: "Installed in this browser", lightMode: "Light mode", darkMode: "Dark mode" },
   hero: {
     title: "Which procedure do you need to do?",
     subtitle: "Ask in your own words. We'll tell you what it is, what you need and where to do it.",
@@ -74,6 +74,18 @@ export const en: Messages = {
     placeholderEmpty: "For example: I've moved house and need to register at the town hall",
     placeholder: "Type your question…",
     footnote: "Nothing is sent without your confirmation",
+    voice: {
+      start: "Talk to the assistant",
+      stop: "End voice conversation",
+      connecting: "Connecting voice…",
+      connected: "AI voice connected. You can speak.",
+      unavailable: "This browser cannot start a voice conversation.",
+      permission: "Allow microphone access to talk to the assistant.",
+      timeout: "The voice connection timed out. Try again.",
+      connection: "Could not start voice. Check your microphone and try again.",
+      response: "Could not complete the voice reply.",
+      disconnected: "The voice connection closed.",
+    },
     title: "Procedures assistant",
     reset: "New",
     reading: "Reading your question…",

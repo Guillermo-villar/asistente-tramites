@@ -34,6 +34,8 @@ Tool results render as UI ("generative UI") in `src/components/chat/tool-cards.t
 
 Card buttons send follow-ups to the chat through `AskContext`.
 
+The microphone in the chat opens a separate live conversation with Eleven Realtime v1 Max. The voice follows the caller's spoken language. The header language picker controls the page and text chat. See the [voice skill](../.agents/skills/asistente-tramites-voz/SKILL.md) for configuration and verification.
+
 ## The flow: discovery on the web, hand-off to the extension
 
 This web is for **discovery**: what trámite it is, what you need, how you sign in. The **extension** then guides you inside the official site. Every trámite card has a «Hacerlo con la extensión» button that hands off. The protocol is in `src/handoff.ts` at the repo root:

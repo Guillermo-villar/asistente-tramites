@@ -98,7 +98,7 @@ function HandoffBox({
       <div className="mt-3 flex flex-wrap items-center gap-2">
         {installed ? (
           <Button
-            className="bg-brand-red text-white hover:bg-brand-red/90"
+            className="bg-brand-red-solid text-white hover:bg-brand-red-solid/90"
             disabled={state === "opening"}
             onClick={start}
             size="sm"
@@ -182,7 +182,7 @@ function FichaCard({ ficha }: { ficha: FichaCatalogo }) {
                   <span
                     className={cn(
                       "mt-0.5 grid size-4 shrink-0 place-items-center rounded border",
-                      hechos.has(i) ? "border-brand-red bg-brand-red text-white" : "border-input"
+                      hechos.has(i) ? "border-brand-red-solid bg-brand-red-solid text-white" : "border-input"
                     )}
                   >
                     {hechos.has(i) && <CheckIcon className="size-3" strokeWidth={3} />}

@@ -4,7 +4,7 @@ import type { Messages } from "./es";
 export const ca: Messages = {
   meta: { title: "OrientaT · Assistent de tràmits", language: "Idioma" },
   brand: { descriptor: "Assistent de tràmits" },
-  header: { extension: "L'extensió", installed: "Instal·lada en aquest navegador" },
+  header: { extension: "L'extensió", installed: "Instal·lada en aquest navegador", lightMode: "Mode clar", darkMode: "Mode fosc" },
   hero: {
     title: "Quin tràmit has de fer?",
     subtitle: "Pregunta-ho amb les teves paraules. Et diem què és, què necessites i on fer-ho.",
@@ -74,6 +74,18 @@ export const ca: Messages = {
     placeholderEmpty: "Per exemple: m'he mudat i m'he d'empadronar",
     placeholder: "Escriu la teva pregunta…",
     footnote: "No s'envia res sense la teva confirmació",
+    voice: {
+      start: "Parlar amb l’assistent",
+      stop: "Acabar la conversa de veu",
+      connecting: "S’està connectant la veu…",
+      connected: "Veu d’IA connectada. Ja pots parlar.",
+      unavailable: "Aquest navegador no permet iniciar una conversa de veu.",
+      permission: "Permet l’accés al micròfon per parlar amb l’assistent.",
+      timeout: "La connexió de veu ha trigat massa. Torna-ho a provar.",
+      connection: "No s’ha pogut iniciar la veu. Comprova el micròfon i torna-ho a provar.",
+      response: "No s’ha pogut completar la resposta de veu.",
+      disconnected: "S’ha tancat la connexió de veu.",
+    },
     title: "Assistent de tràmits",
     reset: "Nova",
     reading: "Llegint la teva consulta…",

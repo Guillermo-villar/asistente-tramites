@@ -35,7 +35,7 @@ export function LangSwitcher({ className }: { className?: string }) {
             >
               {active && (
                 <motion.span
-                  className="absolute inset-0 rounded-full bg-brand-red shadow-[0_2px_6px_-2px_rgb(242_13_13/0.6)]"
+                  className="pointer-events-none absolute inset-0 rounded-full bg-brand-red-solid shadow-[0_2px_6px_-2px_rgb(242_13_13/0.6)]"
                   layoutId="lang-pill"
                   transition={{ type: "spring", bounce: 0.2, duration: 0.35 }}
                 />

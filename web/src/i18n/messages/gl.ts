@@ -4,7 +4,7 @@ import type { Messages } from "./es";
 export const gl: Messages = {
   meta: { title: "OrientaT · Asistente de trámites", language: "Idioma" },
   brand: { descriptor: "Asistente de trámites" },
-  header: { extension: "A extensión", installed: "Instalada neste navegador" },
+  header: { extension: "A extensión", installed: "Instalada neste navegador", lightMode: "Modo claro", darkMode: "Modo escuro" },
   hero: {
     title: "Que trámite tes que facer?",
     subtitle: "Pregúntao coas túas palabras. Dicímosche que é, que necesitas e onde facelo.",
@@ -74,6 +74,18 @@ export const gl: Messages = {
     placeholderEmpty: "Por exemplo: mudeime e teño que empadroarme",
     placeholder: "Escribe a túa pregunta…",
     footnote: "Non se envía nada sen a túa confirmación",
+    voice: {
+      start: "Falar co asistente",
+      stop: "Rematar a conversa de voz",
+      connecting: "Conectando a voz…",
+      connected: "Voz de IA conectada. Xa podes falar.",
+      unavailable: "Este navegador non permite iniciar unha conversa de voz.",
+      permission: "Permite o acceso ao micrófono para falar co asistente.",
+      timeout: "A conexión de voz tardou demasiado. Téntao de novo.",
+      connection: "Non se puido iniciar a voz. Comproba o micrófono e téntao de novo.",
+      response: "Non se puido completar a resposta de voz.",
+      disconnected: "Pechouse a conexión de voz.",
+    },
     title: "Asistente de trámites",
     reset: "Nova",
     reading: "Lendo a túa consulta…",

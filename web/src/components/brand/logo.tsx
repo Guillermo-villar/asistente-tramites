@@ -59,13 +59,13 @@ export function Wordmark({ className, tClassName = "text-brand-red" }: { classNa
 export function Logo({ className }: { className?: string }) {
   const { t } = useI18n();
   return (
-    <span className={cn("flex items-center gap-3", className)}>
-      <LogoMark size={38} />
+    <span className={cn("flex items-center gap-3 max-[399px]:gap-1.5", className)}>
+      <LogoMark className="max-[399px]:h-6 max-[399px]:w-auto" size={38} />
       <span className="flex flex-col leading-none">
-        <span className="font-slab text-[9px] uppercase tracking-[0.16em] text-foreground/70 max-[359px]:hidden sm:text-[10px] sm:tracking-[0.28em]">
+        <span className="font-slab text-[9px] uppercase tracking-[0.16em] text-foreground/70 max-[399px]:sr-only sm:text-[10px] sm:tracking-[0.28em]">
           {t.brand.descriptor}
         </span>
-        <Wordmark className="mt-1 text-[22px]" />
+        <Wordmark className="mt-1 text-[22px] max-[399px]:mt-0 max-[399px]:text-[16px]" />
       </span>
     </span>
   );

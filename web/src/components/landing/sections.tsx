@@ -1,6 +1,8 @@
-import { ArrowRightIcon, CheckIcon, PuzzleIcon, XIcon } from "lucide-react";
+import { useState } from "react";
+import { ArrowRightIcon, CheckIcon, MoonIcon, PuzzleIcon, SunIcon, XIcon } from "lucide-react";
 import { Logo, LogoMark, Waves, Wordmark } from "@/components/brand/logo";
 import { LangSwitcher } from "@/components/landing/lang-switcher";
+import { Button } from "@/components/ui/button";
 import { useI18n } from "@/i18n/i18n";
 import { useExtensionInstalled } from "@/lib/extension-bridge";
 import { siteMaps } from "@/lib/extension-catalog";
@@ -13,13 +15,27 @@ export const scrollToChat = () =>
 export function SiteHeader({ onAsk }: { onAsk: (text: string) => void }) {
   const installed = useExtensionInstalled();
   const { t } = useI18n();
+  const [dark, setDark] = useState(() => document.documentElement.classList.contains("dark"));
+  const themeLabel = dark ? t.header.lightMode : t.header.darkMode;
+
+  function toggleTheme() {
+    const next = !dark;
+    document.documentElement.classList.toggle("dark", next);
+    setDark(next);
+    try {
+      localStorage.setItem("theme", next ? "dark" : "light");
+    } catch {
+      // The selected theme still applies for this visit.
+    }
+  }
+
   return (
     <header className="sticky top-0 z-40 border-b bg-background/85 backdrop-blur">
-      <div className="mx-auto flex h-16 max-w-5xl items-center justify-between gap-3 px-4 sm:gap-6 sm:px-6">
+      <div className="mx-auto flex h-16 max-w-5xl items-center justify-between gap-2 px-3 sm:gap-6 sm:px-6">
         <a className="shrink-0" href="#top">
           <Logo />
         </a>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-1.5 sm:gap-4">
           {/* Hidden on phones to leave room for the language picker; the section is right below. */}
           <button
             className="hidden items-center gap-2 rounded-full border px-3.5 py-1.5 text-sm transition-colors hover:border-foreground/30 sm:inline-flex"
@@ -33,6 +49,9 @@ export function SiteHeader({ onAsk }: { onAsk: (text: string) => void }) {
             {installed && <span className="size-1.5 rounded-full bg-status-done" title={t.header.installed} />}
           </button>
           <LangSwitcher />
+          <Button aria-label={themeLabel} title={themeLabel} onClick={toggleTheme} size="icon" type="button" variant="ghost" className="rounded-full text-muted-foreground">
+            {dark ? <SunIcon aria-hidden="true" /> : <MoonIcon aria-hidden="true" />}
+          </Button>
         </div>
       </div>
     </header>
@@ -222,7 +241,7 @@ function BrowserMock({ className }: { className?: string }) {
 export function SiteFooter() {
   const { t } = useI18n();
   return (
-    <footer className="bg-brand-red text-white">
+    <footer className="bg-brand-red-solid text-white">
       <div className="mx-auto flex max-w-5xl flex-col gap-10 px-4 py-14 sm:px-6 md:flex-row md:items-end md:justify-between">
         <div className="flex items-center gap-5">
           <LogoMark className="text-brand-gold" size={72} />
