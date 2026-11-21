@@ -54,15 +54,34 @@ export function extensionRequest(raw: unknown, model: string) {
 export type ExtensionReply = {
   content: ({ type: 'text'; text: string } | { type: 'tool_use'; id: string; name: string; input: Record<string, unknown> })[]
   stop_reason: 'end_turn' | 'tool_use' | 'refusal' | 'max_tokens'
+  /** Pages OpenAI's web search cited in this reply, shown as the panel's sources. */
+  sources?: { title: string; url: string }[]
+}
+
+/**
+ * OpenAI's web search marks citations with private-use characters: «\uE200cite\uE202turn0search6\uE201».
+ * They should arrive as annotations, but the model sometimes writes them into the text, where they show up
+ * as boxes. Drop them, any stray character of that block, and the space left before punctuation.
+ */
+export function stripCitationMarkers(text: string): string {
+  return text
+    .replace(/\uE200[^\uE201]*\uE201/g, '')
+    .replace(/[\uE200-\uE2FF]/g, '')
+    .replace(/[ \t]+([.,;:!?)])/g, '$1')
+    .replace(/[ \t]+$/gm, '')
 }
 
 export function extensionReply(raw: unknown): ExtensionReply {
   const data = z.object({ status: z.string(), output: z.array(z.object({
     type: z.string(), call_id: z.string().optional(), name: z.string().optional(), arguments: z.string().optional(),
-    content: z.array(z.object({ type: z.string(), text: z.string().optional(), refusal: z.string().optional() })).optional(),
+    content: z.array(z.object({
+      type: z.string(), text: z.string().optional(), refusal: z.string().optional(),
+      annotations: z.array(z.object({ type: z.string(), url: z.string().optional(), title: z.string().optional() }).loose()).optional(),
+    })).optional(),
   })) }).parse(raw)
   if (!['completed', 'incomplete'].includes(data.status)) throw new Error('OpenAI no ha completado la respuesta.')
   const content: ExtensionReply['content'] = []
+  const sources = new Map<string, string>()
   let refusal = false
   for (const item of data.output) {
     if (item.type === 'function_call') {
@@ -73,9 +92,15 @@ export function extensionReply(raw: unknown): ExtensionReply {
     }
     if (item.type === 'message') for (const part of item.content ?? []) {
       if (part.type === 'refusal') refusal = true
-      if (part.text || part.refusal) content.push({ type: 'text', text: part.text ?? part.refusal! })
+      for (const note of part.annotations ?? []) {
+        if (note.type === 'url_citation' && note.url?.startsWith('https://') && !sources.has(note.url)) sources.set(note.url, note.title || note.url)
+      }
+      const said = part.text ? stripCitationMarkers(part.text) : part.refusal
+      if (said?.trim()) content.push({ type: 'text', text: said })
     }
   }
   if (!content.length && data.status === 'completed' && !refusal) throw new Error('OpenAI ha devuelto una respuesta vacía.')
-  return { content, stop_reason: refusal ? 'refusal' : data.status === 'incomplete' ? 'max_tokens' : content.some(part => part.type === 'tool_use') ? 'tool_use' : 'end_turn' }
+  const reply: ExtensionReply = { content, stop_reason: refusal ? 'refusal' : data.status === 'incomplete' ? 'max_tokens' : content.some(part => part.type === 'tool_use') ? 'tool_use' : 'end_turn' }
+  if (sources.size) reply.sources = [...sources].map(([url, title]) => ({ title, url }))
+  return reply
 }

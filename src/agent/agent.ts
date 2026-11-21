@@ -93,6 +93,9 @@ function reportSearches(message: BetaMessage, events: AgentEvents): void {
       for (const hit of block.content) if (hit.type === 'web_search_result') found.push({ title: hit.title, url: hit.url })
     }
   }
+  // OpenAI (src/agent/localClient.ts) reports its search citations next to the content, not as blocks.
+  const cited = (message as { sources?: { title: string; url: string }[] }).sources
+  if (Array.isArray(cited)) found.push(...cited)
   if (found.length) events.sources?.(found)
 }
 

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { extensionReply, extensionRequest } from '../src/agent/openaiProtocol'
+import { extensionReply, extensionRequest, stripCitationMarkers } from '../src/agent/openaiProtocol'
 import { createLocalClient } from '../src/agent/localClient'
 import { runTurn } from '../src/agent/agent'
 import { ToolState } from '../src/agent/tools'
@@ -30,6 +30,28 @@ describe('local OpenAI extension bridge', () => {
     ] }, 'm')
     expect(body.tools).toEqual([{ type: 'function', name: 'read_page', description: undefined, parameters: { type: 'object' }, strict: false }, { type: 'web_search' }])
     expect(body.input).toEqual([{ role: 'user', content: 'empadronarme' }, { role: 'assistant', content: 'Busco la web.' }, { role: 'user', content: 'sigue' }])
+  })
+
+  it('removes the web search citation markers the model writes into the text', () => {
+    const leaked = 'Ten a mano tu DNI actual: puedes usar sus datos para entrar en la web oficial. \uE200cite\uE202turn230076search6\uE202turn230076search1\uE201'
+    expect(stripCitationMarkers(leaked)).toBe('Ten a mano tu DNI actual: puedes usar sus datos para entrar en la web oficial.')
+    expect(stripCitationMarkers('Pide cita \uE200cite\uE202turn0search0\uE201, luego ve.')).toBe('Pide cita, luego ve.')
+    expect(stripCitationMarkers('Resto\uE202 suelto\uE201')).toBe('Resto suelto')
+    expect(stripCitationMarkers('Sin marcas: 3 pasos (y nada más).')).toBe('Sin marcas: 3 pasos (y nada más).')
+  })
+
+  it('passes cited pages on as sources and drops a message that was only markers', () => {
+    const reply = extensionReply({ status: 'completed', output: [
+      { type: 'web_search_call', id: 'ws1' },
+      { type: 'message', content: [{ type: 'output_text', text: 'Pide cita en la web oficial. \uE200cite\uE202turn0search1\uE201', annotations: [
+        { type: 'url_citation', url: 'https://www.citapreviadnie.es/citaPreviaDni/', title: 'Cita previa DNI', start_index: 0, end_index: 10 },
+        { type: 'url_citation', url: 'https://www.citapreviadnie.es/citaPreviaDni/', title: 'Repetida' },
+        { type: 'url_citation', url: 'http://inseguro.example/', title: 'Sin https' },
+      ] }] },
+      { type: 'message', content: [{ type: 'output_text', text: '\uE200cite\uE202turn0search2\uE201' }] },
+    ] })
+    expect(reply.content).toEqual([{ type: 'text', text: 'Pide cita en la web oficial.' }])
+    expect(reply.sources).toEqual([{ title: 'Cita previa DNI', url: 'https://www.citapreviadnie.es/citaPreviaDni/' }])
   })
 
   it('does not execute truncated tool calls', () => {
