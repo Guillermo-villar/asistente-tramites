@@ -70,3 +70,23 @@ export async function clearHighlight(): Promise<void> {
     .executeScript({ target: { tabId: tab.id, allFrames: true }, func: () => globalThis.__asistenteTramites?.run({ op: 'clear' }) })
     .catch(() => undefined)
 }
+
+/** How often the panel renews the "assistant at work" frame; it expires after FRAME_TTL_MS (frame.ts). */
+export const FRAME_RENEW_MS = 3000
+
+/**
+ * Shows or hides the "assistant at work" frame on a tab (src/page/frame.ts). Only official pages accept
+ * it: on any other page the injection or the page script refuses, and this stays quiet. Never throws.
+ */
+export async function setWorkingFrame(tabId: number, on: boolean, approved: string[], label?: string): Promise<void> {
+  try {
+    if (on) await chrome.scripting.executeScript({ target: { tabId, frameIds: [0] }, files: ['content.js'] })
+    await chrome.scripting.executeScript({
+      target: { tabId, frameIds: [0] },
+      func: (request: PageRequest) => globalThis.__asistenteTramites?.run(request),
+      args: [{ op: 'frame', on, approved, ...(label ? { label } : {}) }],
+    })
+  } catch {
+    // Decoration only: a page the extension may not touch simply has no frame.
+  }
+}

@@ -10,27 +10,29 @@ beforeAll(async () => {
 })
 afterEach(() => { for (const panel of panels.splice(0)) panel.window.close() })
 
-function openPanel({ provider = 'openai', failStorage = false, failRender = false } = {}) {
+function openPanel({ provider = 'openai', failStorage = false, failRender = false, fetchImpl = fetch } = {}) {
   const panel = new JSDOM('<div id="root"></div>', { url: 'https://extension.test/', runScripts: 'outside-only', pretendToBeVisual: true, virtualConsole: new VirtualConsole() })
   panels.push(panel)
   const event = { addListener() {}, removeListener() {} }
+  const executeScript = vi.fn(async (_details: { args?: unknown[] }) => [{ frameId: 0, result: { ok: true } }])
   const get = vi.fn(async () => {
     if (failStorage) throw new Error('Extension context invalidated.')
     return { settings: { provider } }
   })
   Object.assign(panel.window, {
-    TextEncoder, TextDecoder, fetch,
+    TextEncoder, TextDecoder, fetch: fetchImpl,
     chrome: {
       sidePanel: {},
       storage: { local: { get }, session: { get: async () => ({}) }, onChanged: event },
-      tabs: { query: async () => [], onUpdated: event, onActivated: failRender ? { addListener() { throw new Error('Panel lifecycle failed') } } : event },
+      scripting: { executeScript },
+      tabs: { query: async () => [{ id: 7, url: 'https://www.citapreviadnie.es/citaPreviaDni/', title: 'Cita previa' }], onUpdated: event, onActivated: failRender ? { addListener() { throw new Error('Panel lifecycle failed') } } : event },
       windows: { getCurrent: async () => ({ id: 1 }), onFocusChanged: event },
     },
   })
   // Like current Chrome: scrollIntoView returns a Promise (jsdom's returns nothing).
   panel.window.HTMLElement.prototype.scrollIntoView = (() => Promise.resolve()) as unknown as HTMLElement['scrollIntoView']
   panel.window.eval(bundle)
-  return { document: panel.window.document, get }
+  return { document: panel.window.document, get, executeScript }
 }
 
 describe('built extension panel', () => {
@@ -48,6 +50,35 @@ describe('built extension panel', () => {
     await vi.waitFor(() => expect(document.querySelector('.msg.user')?.textContent).toBe('Quiero renovar el DNI'))
     expect(document.querySelector('[role="alert"]')).toBeNull()
     expect(document.querySelector('textarea')).not.toBeNull()
+  })
+
+  it('frames the page while the assistant works and removes the frame when it stops', async () => {
+    // The model never answers, so the turn keeps running until the person stops it.
+    const hang = (_url: unknown, init?: RequestInit) => new Promise<Response>((_resolve, reject) => init?.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError'))))
+    const { document, executeScript } = openPanel({ fetchImpl: hang as typeof fetch })
+    const frameCalls = () => executeScript.mock.calls.map(([details]) => details.args?.[0] as { op?: string; on?: boolean; label?: string } | undefined).filter((request) => request?.op === 'frame')
+    await vi.waitFor(() => expect(document.querySelector('.starters button')).not.toBeNull())
+    document.querySelector<HTMLButtonElement>('.starters button')!.click()
+    await vi.waitFor(() => expect(frameCalls().at(-1)).toMatchObject({ on: true, label: 'El asistente está leyendo esta página' }))
+    document.querySelector<HTMLButtonElement>('button[aria-label="Detener"]')!.click()
+    await vi.waitFor(() => expect(frameCalls().at(-1)).toMatchObject({ on: false }))
+  })
+
+  it('«Nueva» starts a new conversation even while a page action is still running', async () => {
+    let calls = 0
+    const reply = async () => Response.json(calls++ === 0
+      ? { content: [{ type: 'tool_use', id: 't1', name: 'read_page', input: {} }], stop_reason: 'tool_use' }
+      : { content: [{ type: 'text', text: 'Nueva respuesta' }], stop_reason: 'end_turn' })
+    const { document, executeScript } = openPanel({ fetchImpl: reply as typeof fetch })
+    // Reading the page never finishes (a page that hangs); the frame still answers.
+    executeScript.mockImplementation((details) => ((details.args?.[0] as { op?: string } | undefined)?.op === 'frame' ? Promise.resolve([{ frameId: 0, result: { ok: true } }]) : new Promise(() => {})))
+    await vi.waitFor(() => expect(document.querySelector('.starters button')).not.toBeNull())
+    document.querySelector<HTMLButtonElement>('.starters button')!.click()
+    await vi.waitFor(() => expect(executeScript.mock.calls.some(([details]) => !details.args)).toBe(true))
+    document.querySelector<HTMLButtonElement>('.new-chat')!.click()
+    await vi.waitFor(() => expect(document.querySelector('button[aria-label="Detener"]')).toBeNull())
+    document.querySelectorAll<HTMLButtonElement>('.starters button')[1]!.click()
+    await vi.waitFor(() => expect([...document.querySelectorAll('.msg')].map((m) => m.textContent?.trim())).toEqual(['Pedir cita para el pasaporte', 'Nueva respuesta']))
   })
 
   it('opens onboarding when no API key is configured', async () => {

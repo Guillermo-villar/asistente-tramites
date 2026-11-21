@@ -1,5 +1,6 @@
 import { clearCursor, pointAt } from './cursor'
 import { Registry, guidedClick, readOutline, readTable } from './dom'
+import { hideFrame, showFrame } from './frame'
 import { clearGuide, showGuide } from './guide'
 import type { PageRequest } from './messages'
 import { policyFor } from '../trust'
@@ -15,10 +16,12 @@ declare global {
 }
 
 async function handle(request: PageRequest, registry: Registry): Promise<unknown> {
+  // Taking something off the page is allowed anywhere; everything else only on official pages.
+  const removing = request.op === 'clear' || (request.op === 'frame' && !request.on)
   const ctx = policyFor(location.href, { approved: request.op === 'clear' ? [] : request.approved ?? [] })
   // The top frame decides: an embedded frame from another host is still read, as the person sees it.
   const pageUrl = window.top === window ? location.href : document.referrer || location.href
-  if (request.op !== 'clear' && !isOfficialUrl(location.href, ctx.officialHosts) && !isOfficialUrl(pageUrl, ctx.officialHosts)) {
+  if (!removing && !isOfficialUrl(location.href, ctx.officialHosts) && !isOfficialUrl(pageUrl, ctx.officialHosts)) {
     return { error: 'Esta página no es una web oficial de confianza para la extensión.' }
   }
   switch (request.op) {
@@ -47,6 +50,10 @@ async function handle(request: PageRequest, registry: Registry): Promise<unknown
       clearGuide()
       clearCursor()
       return { ok: true }
+    case 'frame':
+      if (request.on) showFrame(request.label ?? 'El asistente está leyendo esta página')
+      else hideFrame()
+      return { ok: true }
     default:
       return { error: 'Petición desconocida.' }
   }
@@ -57,6 +64,7 @@ if (!globalThis.__asistenteTramites) {
   window.addEventListener('pagehide', () => {
     clearGuide()
     clearCursor()
+    hideFrame()
   })
   globalThis.__asistenteTramites = { run: (request) => handle(request, registry) }
 }
