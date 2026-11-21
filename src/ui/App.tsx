@@ -5,7 +5,7 @@ import type { FormEvent, KeyboardEvent } from 'react'
 import { createClient, runTurn } from '../agent/agent'
 import { createLocalClient } from '../agent/localClient'
 import type { TurnResult } from '../agent/agent'
-import { FRAME_RENEW_MS, activeTab, chromeBrowser, clearHighlight, setWorkingFrame } from '../agent/chromeBrowser'
+import { FRAME_RENEW_MS, activeTab, chromeBrowser, clearHighlight, preparePage, setWorkingFrame } from '../agent/chromeBrowser'
 import { ToolState } from '../agent/tools'
 import type { Tab } from '../agent/tools'
 import { trackUserWindow, windowMode } from '../agent/userWindow'
@@ -443,6 +443,13 @@ export function App() {
     chrome.storage.onChanged.addListener(onChanged)
     return () => chrome.storage.onChanged.removeListener(onChanged)
   }, [ready, usable, running, tabId, send])
+
+  // Cover personal data on official pages from the moment they load (src/page/mask.ts).
+  // `tab` is a new object after every page load (useActiveTab), so a reload of the same URL counts too;
+  // injecting twice is harmless (content.ts sets itself up once per page).
+  useEffect(() => {
+    if (tab) void preparePage(tab.id)
+  }, [tab])
 
   const answer = (id: string, value: string) => {
     patch(id, { answer: value })

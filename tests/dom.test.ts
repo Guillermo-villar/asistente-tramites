@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { Registry, guidedClick, readOutline, readTable, redact } from '../src/page/dom'
 import { FRAME_TTL_MS, frameShown, hideFrame, showFrame } from '../src/page/frame'
 import { clearGuide, guideShown, showGuide } from '../src/page/guide'
+import { halfMask, isSensitiveField, startMasking } from '../src/page/mask'
 import { PLUGINS } from '../src/plugins/registry'
 import type { PolicyContext } from '../src/policy'
 
@@ -204,6 +205,42 @@ describe('assistant-at-work frame', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+})
+
+describe('sensitive fields covered on screen', () => {
+  it('covers the middle of a value and keeps its start and last character', () => {
+    expect(halfMask('12345678Z')).toBe('1234****Z')
+    expect(halfMask('X1234567L')).toBe('X123****L')
+    expect(halfMask('612 345 678')).toBe('612 3** **8')
+    expect(halfMask('ana.garcia@example.com')).toBe('ana.*****a@example.com')
+    expect(halfMask('ab')).toBe('**')
+  })
+
+  it('recognises personal-data fields by label or value, and leaves the rest', () => {
+    document.body.innerHTML = `
+      <label for="a">Número de DNI</label><input id="a">
+      <label for="b">Teléfono móvil</label><input id="b" type="tel">
+      <label for="c">Correo electrónico</label><input id="c" type="email">
+      <label for="d">Letra del soporte</label><input id="d">
+      <label for="e">Provincia</label><input id="e">
+      <label for="f">Observaciones</label><input id="f" value="12345678Z">
+      <label for="g">Acepto</label><input id="g" type="checkbox">`
+    const sensitive = [...document.querySelectorAll('input')].filter((el) => isSensitiveField(el)).map((el) => el.id)
+    expect(sensitive).toEqual(['a', 'b', 'c', 'd', 'f'])
+  })
+
+  it('hides the typed text on screen but keeps the real value for the form', () => {
+    document.body.innerHTML = '<label for="dni">Número de DNI</label><input id="dni" value="12345678Z">'
+    const input = document.getElementById('dni') as HTMLInputElement
+    input.getBoundingClientRect = () => ({ left: 10, top: 10, width: 200, height: 30, right: 210, bottom: 40, x: 10, y: 10, toJSON() {} }) as DOMRect
+    document.elementFromPoint = () => input
+    startMasking(document)
+    expect(input.value).toBe('12345678Z')
+    expect(input.style.getPropertyValue('color')).toBe('transparent')
+    expect(document.getElementById('asistente-tramites-mask')).not.toBeNull()
+    const { outline } = readOutline(document, new Registry(), CTX)
+    expect(outline).not.toContain('1234')
   })
 })
 

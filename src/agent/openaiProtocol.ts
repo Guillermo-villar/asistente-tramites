@@ -66,6 +66,8 @@ export type ExtensionReply = {
 export function stripCitationMarkers(text: string): string {
   return text
     .replace(/\uE200[^\uE201]*\uE201/g, '')
+    // The same markers written without their private-use characters: «citeturn650182search6».
+    .replace(/[ \t]?\b(?:cite|filecite)(?:turn\d+[a-z]+\d+)+/gi, '')
     .replace(/[\uE200-\uE2FF]/g, '')
     .replace(/[ \t]+([.,;:!?)])/g, '$1')
     .replace(/[ \t]+$/gm, '')

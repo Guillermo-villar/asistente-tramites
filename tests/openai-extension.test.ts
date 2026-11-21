@@ -90,3 +90,15 @@ describe('local OpenAI extension bridge', () => {
     expect(mockFetch).toHaveBeenCalledTimes(1)
   })
 })
+
+describe('OpenAI citation markers', () => {
+  it('are removed from the text the panel shows', () => {
+    const raw = 'Pide cita en la web oficial citeturn650182search6. Lleva una foto citeturn650182search6 reciente.'
+    const reply = extensionReply({ status: 'completed', output: [{ type: 'message', content: [{ type: 'output_text', text: raw }] }] })
+    expect(reply.content).toEqual([{ type: 'text', text: 'Pide cita en la web oficial. Lleva una foto reciente.' }])
+  })
+
+  it('leave ordinary words alone', () => {
+    expect(stripCitationMarkers('Para citar la cita previa, recite el número.')).toBe('Para citar la cita previa, recite el número.')
+  })
+})

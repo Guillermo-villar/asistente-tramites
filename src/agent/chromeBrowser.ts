@@ -90,3 +90,12 @@ export async function setWorkingFrame(tabId: number, on: boolean, approved: stri
     // Decoration only: a page the extension may not touch simply has no frame.
   }
 }
+
+/**
+ * Loads the page script into every frame of a tab as soon as the page is there, so sensitive fields are
+ * covered (src/page/mask.ts) before the person types, not only after the assistant first reads the page.
+ * Chrome injects only where this extension has access (the official hosts); elsewhere it stays quiet.
+ */
+export async function preparePage(tabId: number): Promise<void> {
+  await chrome.scripting.executeScript({ target: { tabId, allFrames: true }, files: ['content.js'] }).catch(() => undefined)
+}

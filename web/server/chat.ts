@@ -2,7 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import { readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
 import type { Plugin } from 'vite'
-import { extensionRequest, extensionReply } from '../../src/agent/openaiProtocol.js'
+import { extensionRequest, extensionReply, stripCitationMarkers } from '../../src/agent/openaiProtocol.js'
 
 type InputMessage = { role: 'user' | 'assistant'; content: string }
 
@@ -50,7 +50,7 @@ MAPAS:\n${JSON.stringify(options.maps)}`,
   }
   const data = await response.json() as { output?: { type: string; content?: { type: string; text?: string; refusal?: string }[] }[] }
   const text = (data.output ?? []).filter(item => item.type === 'message').flatMap(item => item.content ?? [])
-    .map(part => part.type === 'output_text' ? part.text ?? '' : part.type === 'refusal' ? part.refusal ?? '' : '').join('\n')
+    .map(part => part.type === 'output_text' ? stripCitationMarkers(part.text ?? '') : part.type === 'refusal' ? part.refusal ?? '' : '').join('\n')
   if (!text) throw new Error('OpenAI ha devuelto una respuesta vacía. Vuelve a intentarlo.')
   return text
 }

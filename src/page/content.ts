@@ -2,6 +2,7 @@ import { clearCursor, pointAt } from './cursor'
 import { Registry, guidedClick, readOutline, readTable } from './dom'
 import { hideFrame, showFrame } from './frame'
 import { clearGuide, showGuide } from './guide'
+import { startMasking } from './mask'
 import type { PageRequest } from './messages'
 import { policyFor } from '../trust'
 import { isOfficialUrl } from '../policy'
@@ -61,6 +62,8 @@ async function handle(request: PageRequest, registry: Registry): Promise<unknown
 
 if (!globalThis.__asistenteTramites) {
   const registry = new Registry()
+  // From the moment the assistant touches an official page, personal data typed there shows half covered.
+  startMasking(document)
   window.addEventListener('pagehide', () => {
     clearGuide()
     clearCursor()

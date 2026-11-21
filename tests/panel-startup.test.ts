@@ -14,7 +14,7 @@ function openPanel({ provider = 'openai', v = 2, failStorage = false, failRender
   const panel = new JSDOM('<div id="root"></div>', { url: 'https://extension.test/', runScripts: 'outside-only', pretendToBeVisual: true, virtualConsole: new VirtualConsole() })
   panels.push(panel)
   const event = { addListener() {}, removeListener() {} }
-  const executeScript = vi.fn(async (_details: { args?: unknown[] }) => [{ frameId: 0, result: { ok: true } }])
+  const executeScript = vi.fn(async (_details: { args?: unknown[]; target?: { frameIds?: number[] } }) => [{ frameId: 0, result: { ok: true } }])
   const get = vi.fn(async () => {
     if (failStorage) throw new Error('Extension context invalidated.')
     return { settings: { provider, v } }
@@ -74,7 +74,8 @@ describe('built extension panel', () => {
     executeScript.mockImplementation((details) => ((details.args?.[0] as { op?: string } | undefined)?.op === 'frame' ? Promise.resolve([{ frameId: 0, result: { ok: true } }]) : new Promise(() => {})))
     await vi.waitFor(() => expect(document.querySelector('.starters button')).not.toBeNull())
     document.querySelector<HTMLButtonElement>('.starters button')!.click()
-    await vi.waitFor(() => expect(executeScript.mock.calls.some(([details]) => !details.args)).toBe(true))
+    // Wait until the turn is inside read_page (its call names one frame), not the panel preparing the page.
+    await vi.waitFor(() => expect(executeScript.mock.calls.some(([details]) => !details.args && (details as { target?: { frameIds?: number[] } }).target?.frameIds)).toBe(true))
     document.querySelector<HTMLButtonElement>('.new-chat')!.click()
     await vi.waitFor(() => expect(document.querySelector('button[aria-label="Detener"]')).toBeNull())
     document.querySelectorAll<HTMLButtonElement>('.starters button')[1]!.click()
