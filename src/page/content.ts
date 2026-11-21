@@ -1,5 +1,6 @@
 import { clearCursor, pointAt } from './cursor'
 import { Registry, guidedClick, readOutline, readTable } from './dom'
+import { fillForm, probeForm } from './form'
 import { hideFrame, showFrame } from './frame'
 import { clearGuide, showGuide } from './guide'
 import { startMasking } from './mask'
@@ -47,6 +48,11 @@ async function handle(request: PageRequest, registry: Registry): Promise<unknown
       showGuide(el, request.instruction)
       return { ok: true }
     }
+    // Panel forms: only the fields this page's own site map declares (form.ts).
+    case 'form':
+      return probeForm(document, location.href, request.form)
+    case 'fill':
+      return fillForm(document, location.href, request.form, request.values)
     case 'clear':
       clearGuide()
       clearCursor()

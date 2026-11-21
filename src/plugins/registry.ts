@@ -1,7 +1,7 @@
 import { RAW_PLUGINS } from '../../plugins/index'
 import { fold, isOfficialHost } from '../policy'
 import { checkPlugin } from './schema'
-import type { Procedure, SitePlugin } from './schema'
+import type { PanelForm, Procedure, SitePlugin } from './schema'
 
 // Every bundled site map, checked once at load. A map that fails its checks is left out rather than
 // trusted: the tests make sure none does.
@@ -44,6 +44,19 @@ export function pluginForUrl(url: string | undefined, plugins: SitePlugin[] = PL
     }
   }
   return best?.plugin
+}
+
+/** The panel forms a site map declares, in step order. */
+export function formsOf(plugin: SitePlugin | undefined): PanelForm[] {
+  return (plugin?.procedures ?? []).flatMap((proc) => proc.steps.flatMap((step) => (step.form ? [step.form] : [])))
+}
+
+/**
+ * A panel form, looked up in the map of the site the URL belongs to and nowhere else: a form can only
+ * ever be used on its own site.
+ */
+export function formForUrl(url: string | undefined, formId: string, plugins: SitePlugin[] = PLUGINS): PanelForm | undefined {
+  return formsOf(pluginForUrl(url, plugins)).find((form) => form.id === formId)
 }
 
 export type ProcedureHit = { plugin: SitePlugin; procedure: Procedure; score: number }

@@ -840,6 +840,113 @@ div.stack {
   border-radius: var(--r-md);
 }
 
+/* A panel form: the person types here and the extension copies it to the official page. */
+.form-card:not(.answered) {
+  border-color: var(--turn-border);
+  gap: 10px;
+}
+
+.form-card .tag {
+  color: var(--turn);
+}
+
+.form-row {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: flex-start;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-meta);
+  font-weight: 500;
+}
+
+.form-field.tiny {
+  flex: 0 0 64px;
+}
+
+.form-field em {
+  font-style: normal;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.form-field input {
+  width: 100%;
+  font-family: var(--mono);
+  font-size: 15px;
+  letter-spacing: 0.04em;
+}
+
+.form-field .upper {
+  text-transform: uppercase;
+}
+
+/* The typed text is transparent; the half-covered copy sits exactly on top of it. */
+.masked-input {
+  position: relative;
+  display: block;
+}
+
+.masked-input input {
+  color: transparent;
+  caret-color: var(--fg);
+}
+
+.masked-input .cover {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  /* The input's padding plus its border. */
+  padding: 0 10px;
+  font-family: var(--mono);
+  font-size: 15px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  white-space: pre;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.form-field.tiny .cover {
+  justify-content: center;
+}
+
+.form-field input::placeholder {
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.form-field.tiny input {
+  text-align: center;
+}
+
+.form-field input[aria-invalid='true'] {
+  border-color: var(--error);
+}
+
+.field-problem {
+  font-weight: 400;
+  color: var(--error);
+}
+
+.form-privacy {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.form-privacy svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
 /* «Te toca a ti»: the person does the step on the page, then comes back. */
 .done-bar {
   display: flex;

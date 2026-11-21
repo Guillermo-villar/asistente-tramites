@@ -11,11 +11,16 @@ describe('cita previa DNI map', () => {
     expect(booking.login).toEqual(['datos_documento'])
   })
 
-  it('walks the observed form field by field, and leaves «Enviar datos» to the person', () => {
+  it('collects the document data in one panel form, and leaves the code and «Enviar datos» to the person', () => {
     const titles = booking.steps.map((s) => s.title)
-    for (const step of ['Número y letra del documento', 'Equipo de expedición', 'Fecha de validez', 'Número de soporte', 'Código de seguridad', 'Enviar los datos']) {
+    for (const step of ['Datos del documento', 'Código de seguridad', 'Enviar los datos']) {
       expect(titles).toContain(step)
     }
+    const form = booking.steps.find((s) => s.title === 'Datos del documento')?.form
+    expect(form?.id).toBe('datos-dni')
+    // The ids of the inputs on the live page, read on 2026-11-21. The security code is not among them.
+    expect(form?.fields.map((f) => f.target)).toEqual(['numDocumento', 'letraDocumento', 'codEquipo', 'fechaValidez', 'numSoporte'])
+    expect(form?.fields.filter((f) => f.optional).map((f) => f.id)).toEqual(['soporte'])
     expect(dni.user_only).toContain('Enviar datos')
     expect(booking.steps.find((s) => s.title === 'Enviar los datos')?.user_only).toEqual(['Enviar datos'])
   })

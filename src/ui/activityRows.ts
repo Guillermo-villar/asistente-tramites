@@ -15,6 +15,7 @@ const TOOL_LABELS: Record<string, string> = {
   open_page: 'Abriendo la página',
   click: 'Moviéndome por la sede',
   point_to: 'Señalando en la página',
+  show_form: 'Abriendo el formulario del panel',
   ask_user: 'Preguntándote',
   web_search: 'Buscando la web oficial en internet',
 }

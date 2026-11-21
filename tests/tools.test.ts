@@ -25,6 +25,7 @@ function fakeHost(tab: Tab = OFFICIAL) {
       }
       if (request.op === 'click') return { ok: true, name: 'Ayuda' }
       if (request.op === 'point') return { ok: true }
+      if (request.op === 'form') return { present: ['numero', 'letra', 'equipo', 'validez', 'soporte'] }
       return { ok: true }
     }) as Browser['page'],
     navigate: vi.fn(async (_id: number, url: string) => ({ id: 1, url, title: 'Abierta' })),
@@ -43,7 +44,7 @@ function fakeHost(tab: Tab = OFFICIAL) {
 describe('tool surface', () => {
   it('has no tool that types, fills, selects or submits', () => {
     const names = TOOL_DEFS.map((t) => t.name)
-    expect(names).toEqual(['find_procedure', 'get_procedure', 'read_page', 'open_page', 'click', 'point_to', 'ask_user'])
+    expect(names).toEqual(['find_procedure', 'get_procedure', 'read_page', 'open_page', 'click', 'point_to', 'show_form', 'ask_user'])
     expect(names.join(' ')).not.toMatch(/fill|type|select|submit|press|act\b|write|input/)
     expect(JSON.stringify(TOOL_DEFS)).not.toMatch(/"value"/)
   })
@@ -178,5 +179,45 @@ describe('point_to, ask_user and the site maps', () => {
     expect(detail.content).toContain('BORRADOR')
     expect(detail.content).toContain('https://www.citapreviadnie.es/citaPreviaDni/')
     expect((await runTool('get_procedure', { plugin_id: 'cita-dni', procedure_id: 'nada' }, host, state)).isError).toBe(true)
+  })
+})
+
+describe('show_form', () => {
+  it('shows the map\'s form and reports which fields were filled, never a value', async () => {
+    const { host, state, requests } = fakeHost({ ...OFFICIAL, url: 'https://www.citapreviadnie.es/citaPreviaDni/InicioDNINIE.action' })
+    host.showForm = vi.fn(async () => ({ status: 'filled' as const, filled: ['numero', 'letra', 'equipo'], failed: ['validez'] }))
+    const result = await runTool('show_form', { form_id: 'datos-dni' }, host, state)
+    expect(result.isError).toBe(false)
+    expect(result.content).toContain('Rellenados: Número de documento, Letra, Equipo de expedición.')
+    expect(result.content).toContain('No se pudieron copiar: Fecha de validez.')
+    expect(result.content).toContain('Dejó en blanco: Número de soporte.')
+    expect(host.showForm).toHaveBeenCalledWith(expect.objectContaining({ tabId: 1, present: ['numero', 'letra', 'equipo', 'validez', 'soporte'] }))
+    // The tool itself only asks the page which fields it has: it never sends a fill.
+    expect(requests.map((r) => r.op)).toEqual(['form'])
+  })
+
+  it('takes a form id and nothing else', () => {
+    expect(TOOL_INPUTS.show_form.safeParse({ form_id: 'datos-dni', values: { numero: '1' } }).success).toBe(false)
+  })
+
+  it('refuses a form the open site does not declare, and pages without the fields', async () => {
+    const dni = fakeHost()
+    dni.host.showForm = vi.fn()
+    expect((await runTool('show_form', { form_id: 'otro' }, dni.host, dni.state)).content).toContain('Formularios de esta sede: datos-dni')
+    ;(dni.browser.page as ReturnType<typeof vi.fn>).mockResolvedValue({ present: [] })
+    expect((await runTool('show_form', { form_id: 'datos-dni' }, dni.host, dni.state)).isError).toBe(true)
+    const other = fakeHost({ id: 1, url: 'https://www.casa47.es/', title: 'Casa 47' })
+    other.host.showForm = vi.fn()
+    expect((await runTool('show_form', { form_id: 'datos-dni' }, other.host, other.state)).isError).toBe(true)
+    expect(dni.host.showForm).not.toHaveBeenCalled()
+    expect(other.host.showForm).not.toHaveBeenCalled()
+  })
+
+  it('falls back to pointing when the person declines', async () => {
+    const { host, state } = fakeHost()
+    host.showForm = vi.fn(async () => ({ status: 'declined' as const }))
+    const result = await runTool('show_form', { form_id: 'datos-dni' }, host, state)
+    expect(result.isError).toBe(false)
+    expect(result.content).toContain('point_to')
   })
 })

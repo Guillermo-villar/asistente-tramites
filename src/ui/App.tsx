@@ -3,15 +3,19 @@ import type { BetaMessageParam } from '@anthropic-ai/sdk/resources/beta/messages
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent, KeyboardEvent } from 'react'
 import { createClient, runTurn } from '../agent/agent'
+import { fillPageForm } from '../agent/formFill'
 import { createLocalClient } from '../agent/localClient'
 import type { TurnResult } from '../agent/agent'
 import { FRAME_RENEW_MS, activeTab, chromeBrowser, clearHighlight, preparePage, setWorkingFrame } from '../agent/chromeBrowser'
 import { ToolState } from '../agent/tools'
-import type { Tab } from '../agent/tools'
+import type { FormOutcome, Tab } from '../agent/tools'
 import { trackUserWindow, windowMode } from '../agent/userWindow'
 import { PENDING_TTL_MS, handoffMessage, pendingKey } from '../handoff'
 import type { PendingTask } from '../handoff'
+import { fieldProblem } from '../page/form'
+import { halfMask } from '../page/mask'
 import { pluginForUrl } from '../plugins/registry'
+import type { FormField } from '../plugins/schema'
 import { hostOf, trustOf } from '../trust'
 import { Activity, LiveStatus } from './Activity'
 import { BrandLockup, BrandMark } from './Brand'
@@ -131,7 +135,7 @@ function Onboarding({ onSave, onUseOpenAI }: { onSave: (key: string) => void; on
       </div>
       <ol className="promises">
         <li>
-          <strong>Nunca escribo por ti.</strong> Ni tu DNI, ni contraseñas, ni ningún dato.
+          <strong>Nunca escribo por ti.</strong> Tus datos los pones tú: en la web o, en algún paso, en un formulario de este panel que los copia tal cual sin que yo los vea.
         </li>
         <li>
           <strong>Nunca envío, firmo, pago ni confirmo.</strong> Esos botones los pulsas tú.
@@ -156,7 +160,7 @@ function Onboarding({ onSave, onUseOpenAI }: { onSave: (key: string) => void; on
       <p className="privacy small muted">
         <strong>Privacidad.</strong> La clave se guarda solo en este navegador. El asistente envía al modelo el texto de las páginas oficiales que lee, nunca lo que escribes
         en los formularios: solo sabe si un campo está «rellenado» o «vacío». Los DNI, NIE, IBAN, números de la Seguridad Social, correos y móviles de la página se ocultan
-        antes de enviarla. Para buscar webs oficiales usa la búsqueda web de Claude con las palabras del trámite, nunca con tus datos.
+        antes de enviarla. Lo que escribes en un formulario del panel va directo a la web oficial: no se envía al modelo ni se guarda. Para buscar webs oficiales usa la búsqueda web de Claude con las palabras del trámite, nunca con tus datos.
       </p>
     </form>
   )
@@ -233,6 +237,135 @@ function SiteCard({ item, onAnswer }: { item: Extract<Item, { kind: 'site' }>; o
   )
 }
 
+/** Fields in rows: a one- or two-character field (the DNI letter) shares the row of the field before it. */
+function fieldRows(fields: FormField[]): FormField[][] {
+  const rows: FormField[][] = []
+  for (const field of fields) {
+    const last = rows[rows.length - 1]
+    if (field.max_length <= 2 && last?.length === 1) last.push(field)
+    else rows.push([field])
+  }
+  return rows
+}
+
+/**
+ * A panel form. What the person types shows half covered, «1234****», as it does on the page
+ * (src/page/mask.ts): the input keeps the real text, made transparent, under a covered copy.
+ * What the person types lives only in this component until «Copiar a la web», then goes to
+ * the page through `onSubmit`. It is never put in the conversation, so the assistant and the debug log
+ * only ever learn which fields were filled.
+ */
+function FormCard({
+  item,
+  onSubmit,
+  onDecline,
+}: {
+  item: Extract<Item, { kind: 'form' }>
+  onSubmit: (values: Record<string, string>) => Promise<string | null>
+  onDecline: () => void
+}) {
+  const [values, setValues] = useState<Record<string, string>>({})
+  const [checked, setChecked] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [failure, setFailure] = useState<string | null>(null)
+  const fields = item.form.fields.filter((field) => item.present.includes(field.id))
+  const labels = (ids: string[]) => fields.filter((field) => ids.includes(field.id)).map((field) => field.label).join(', ')
+
+  if (item.outcome) {
+    const { outcome } = item
+    return (
+      <div className="card form-card answered">
+        {outcome.status === 'filled' ? (
+          <>
+            <p className="outcome approved">
+              <IconCheck size={14} /> Copiado a la web: {labels(outcome.filled)}
+            </p>
+            {outcome.failed.length > 0 && (
+              <p className="outcome">
+                <IconClose size={14} /> Sin copiar: {labels(outcome.failed)}
+              </p>
+            )}
+          </>
+        ) : (
+          <p className="outcome">
+            <IconClose size={14} /> Formulario sin usar
+          </p>
+        )}
+      </div>
+    )
+  }
+
+  const problems = Object.fromEntries(fields.map((field) => [field.id, fieldProblem(field, values[field.id] ?? '')]))
+  const submit = async (event: FormEvent) => {
+    event.preventDefault()
+    setChecked(true)
+    setFailure(null)
+    if (fields.some((field) => problems[field.id])) return
+    setBusy(true)
+    const error = await onSubmit(values)
+    setBusy(false)
+    if (error) setFailure(error)
+    else setValues({})
+  }
+
+  return (
+    <form className="card form-card" onSubmit={(event) => void submit(event)} noValidate autoComplete="off">
+      <span className="tag">Tus datos</span>
+      <p className="question">{item.form.title}</p>
+      {item.form.intro && <p className="small muted">{item.form.intro}</p>}
+      {fieldRows(fields).map((row) => (
+        <div key={row[0]!.id} className="form-row">
+          {row.map((field) => {
+            const problem = checked ? problems[field.id] : null
+            return (
+              <label key={field.id} className={`form-field${field.max_length <= 2 ? ' tiny' : ''}`}>
+                <span>
+                  {field.label}
+                  {field.optional && <em> (opcional)</em>}
+                </span>
+                <span className="masked-input">
+                <input
+                  type="text"
+                  value={values[field.id] ?? ''}
+                  onChange={(e) => setValues((prev) => ({ ...prev, [field.id]: e.target.value }))}
+                  maxLength={field.max_length}
+                  placeholder={field.placeholder}
+                  inputMode={field.numeric ? 'numeric' : 'text'}
+                  autoCapitalize={field.uppercase ? 'characters' : 'off'}
+                  className={field.uppercase ? 'upper' : undefined}
+                  autoComplete="off"
+                  spellCheck={false}
+                  aria-invalid={!!problem}
+                  disabled={busy}
+                />
+                <span className={`cover${field.uppercase ? ' upper' : ''}`} aria-hidden="true">{halfMask(values[field.id] ?? '')}</span>
+                </span>
+                {problem ? <span className="field-problem">{problem}</span> : field.hint && field.max_length > 2 && <span className="small muted">{field.hint}</span>}
+              </label>
+            )
+          })}
+        </div>
+      ))}
+      {failure && (
+        <p className="error" role="alert">
+          {failure}
+        </p>
+      )}
+      <p className="form-privacy small muted">
+        <IconLock /> El asistente no ve estos datos. Van directos a la web oficial y no se guardan.
+      </p>
+      <footer>
+        <button type="submit" className="primary" disabled={busy}>
+          {busy ? 'Copiando…' : 'Copiar a la web'}
+        </button>
+        <button type="button" className="ghost" disabled={busy} onClick={onDecline}>
+          Prefiero escribirlos en la web
+        </button>
+      </footer>
+    </form>
+  )
+}
+
 function Sources({ item }: { item: Extract<Item, { kind: 'sources' }> }) {
   return (
     <details className="sources">
@@ -274,6 +407,7 @@ export function App() {
   const generation = useRef(0)
   const answers = useRef(new Map<string, (answer: string) => void>())
   const siteAnswers = useRef(new Map<string, (approved: boolean) => void>())
+  const formAnswers = useRef(new Map<string, (outcome: FormOutcome) => void>())
   const logEnd = useRef<HTMLDivElement | null>(null)
   const tab = useActiveTab()
   // OpenAI goes through the local server, which holds its own key: no key is needed in the panel.
@@ -372,6 +506,14 @@ export function App() {
                 push({ kind: 'site', id, url, host, reason })
                 controller.signal.addEventListener('abort', () => resolve(false), { once: true })
               }),
+            showForm: (request) =>
+              new Promise<FormOutcome>((resolve) => {
+                if (!live()) return resolve({ status: 'declined' })
+                const id = newId('form')
+                formAnswers.current.set(id, resolve)
+                push({ kind: 'form', id, ...request })
+                controller.signal.addEventListener('abort', () => resolve({ status: 'declined' }), { once: true })
+              }),
           },
           events: {
             text(delta, turn) {
@@ -416,7 +558,7 @@ export function App() {
           abort.current = null
           setRunning(false)
           setItems((prev) =>
-            prev.map((item) => (item.kind === 'tool' && item.status === 'running' ? { ...item, status: 'error' } : item.kind === 'site' && !item.answer ? { ...item, answer: 'declined' } : item)),
+            prev.map((item) => (item.kind === 'tool' && item.status === 'running' ? { ...item, status: 'error' } : item.kind === 'site' && !item.answer ? { ...item, answer: 'declined' } : item.kind === 'form' && !item.outcome ? { ...item, outcome: { status: 'declined' } } : item)),
           )
         }
       }
@@ -492,6 +634,20 @@ export function App() {
     resolve?.(granted)
   }
 
+  const finishForm = (id: string, outcome: FormOutcome) => {
+    patch(id, { outcome })
+    formAnswers.current.get(id)?.(outcome)
+    formAnswers.current.delete(id)
+  }
+
+  // The only place the person's values are handled outside the form itself: straight to the page.
+  const submitForm = async (item: Extract<Item, { kind: 'form' }>, values: Record<string, string>): Promise<string | null> => {
+    const result = await fillPageForm(chromeBrowser, item.tabId, item.form.id, values, approvedRef.current).catch(() => null)
+    if (!result?.filled.length) return 'No se han podido copiar los datos. Comprueba que la página del formulario sigue abierta en esa pestaña y vuelve a intentarlo.'
+    finishForm(item.id, { status: 'filled', ...result })
+    return null
+  }
+
   const forgetSite = (host: string) => {
     setApprovedHosts(approvedRef.current.filter((h) => h !== host))
     void dropSiteAccess(host)
@@ -507,6 +663,7 @@ export function App() {
     setRunning(false)
     answers.current.clear()
     siteAnswers.current.clear()
+    formAnswers.current.clear()
     history.current = []
     toolState.current = new ToolState()
     setItems([])
@@ -525,7 +682,7 @@ export function App() {
 
   const rows = useMemo(() => toRows(items), [items])
   const last = rows[rows.length - 1]
-  const waitingOnPerson = last?.kind === 'ask' || (last?.kind === 'site' && !last.answer)
+  const waitingOnPerson = last?.kind === 'ask' || (last?.kind === 'site' && !last.answer) || (last?.kind === 'form' && !last.outcome)
 
   // While the assistant works, a coloured frame around the person's page says it is reading and moving
   // around there (src/page/frame.ts). Re-sent after each page load and renewed on a timer, because the
@@ -718,6 +875,8 @@ export function App() {
               return <AskCard key={row.id} item={row} onAnswer={(value) => answer(row.id, value)} />
             case 'site':
               return <SiteCard key={row.id} item={row} onAnswer={(approve) => void answerSite(row, approve)} />
+            case 'form':
+              return <FormCard key={row.id} item={row} onSubmit={(values) => submitForm(row, values)} onDecline={() => finishForm(row.id, { status: 'declined' })} />
             case 'sources':
               return <Sources key={row.id} item={row} />
             case 'notice':

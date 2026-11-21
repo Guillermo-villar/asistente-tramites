@@ -12,6 +12,35 @@ const kebab = z.string().regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, 'kebab-case')
 const httpsUrl = z.url({ protocol: /^https$/ })
 const hostname = z.string().regex(/^([a-z0-9-]+\.)+[a-z]{2,}$/, 'a bare hostname like sede.example.gob.es')
 
+/** One field of a panel form: what the person sees, and the input on the page it is copied into. */
+export const FormFieldSchema = z.object({
+  id: kebab,
+  label: z.string().min(1),
+  /** The `id` attribute of the text input on the official page. */
+  target: z.string().regex(/^[A-Za-z][\w-]*$/, 'a DOM id'),
+  hint: z.string().optional(),
+  placeholder: z.string().optional(),
+  max_length: z.number().int().min(1).max(100),
+  /** A regular expression the whole value must match, checked in the panel and again in the page. */
+  pattern: z.string().refine((source) => { try { new RegExp(source); return true } catch { return false } }, 'a regular expression').optional(),
+  /** Letters are copied in upper case. */
+  uppercase: z.boolean().optional(),
+  numeric: z.boolean().optional(),
+  /** The person may leave it empty; the page field is then left as it is. */
+  optional: z.boolean().optional(),
+})
+
+/**
+ * A form shown in the panel for one step. The person types there, and the extension copies each value
+ * into its `target` on the page. The values never reach the assistant (src/page/form.ts).
+ */
+export const FormSchema = z.object({
+  id: kebab,
+  title: z.string().min(1),
+  intro: z.string().optional(),
+  fields: z.array(FormFieldSchema).min(1).max(12),
+})
+
 export const StepSchema = z.object({
   title: z.string().min(1),
   /** Where this step happens, when it has a stable address. */
@@ -22,6 +51,8 @@ export const StepSchema = z.object({
   person_does: z.string().optional(),
   /** Names of controls on this step that only the person presses, beyond the global rules. */
   user_only: z.array(z.string()).optional(),
+  /** A panel form that fills this step's fields for the person. */
+  form: FormSchema.optional(),
 })
 
 export const ProcedureSchema = z.object({
@@ -57,6 +88,8 @@ export const SitePluginSchema = z.object({
   checked: z.iso.date(),
 })
 
+export type FormField = z.infer<typeof FormFieldSchema>
+export type PanelForm = z.infer<typeof FormSchema>
 export type Step = z.infer<typeof StepSchema>
 export type Procedure = z.infer<typeof ProcedureSchema>
 export type SitePlugin = z.infer<typeof SitePluginSchema>
@@ -78,7 +111,17 @@ export function checkPlugin(raw: unknown): { plugin: SitePlugin | null; problems
   }
   const urls: [string, string][] = [['home', plugin.home]]
   const ids = new Set<string>()
+  const formIds = new Set<string>()
   for (const proc of plugin.procedures) {
+    for (const step of proc.steps) {
+      if (!step.form) continue
+      if (formIds.has(step.form.id)) problems.push({ plugin: plugin.id, message: `duplicate form id ${step.form.id}` })
+      formIds.add(step.form.id)
+      for (const key of ['id', 'target'] as const) {
+        const seen = step.form.fields.map((field) => field[key])
+        if (new Set(seen).size !== seen.length) problems.push({ plugin: plugin.id, message: `form ${step.form.id} repeats a field ${key}` })
+      }
+    }
     if (ids.has(proc.id)) problems.push({ plugin: plugin.id, message: `duplicate procedure id ${proc.id}` })
     ids.add(proc.id)
     urls.push([`${proc.id}.entry_url`, proc.entry_url])

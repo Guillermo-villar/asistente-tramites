@@ -12,10 +12,10 @@
     "En la página de inicio el enlace «CONTINUAR» lleva a la solicitud; el asistente puede pulsarlo.",
     "La propia web avisa de que la app MiDNI no necesita cita para el registro en los Puestos de Actualización de Documentos (PAD).",
     "Si la persona tiene dudas de su caso, la web ofrece el correo sac@policia.es para consultas sobre la cita previa.",
-    "Nunca pidas ni repitas el número de DNI, la letra, el equipo de expedición, la fecha de validez, el número de soporte ni el código de seguridad. La persona los escribe en la web sin decirlos en el chat.",
+    "Nunca pidas ni repitas el número de DNI, la letra, el equipo de expedición, la fecha de validez, el número de soporte ni el código de seguridad. La persona los escribe en el formulario del panel o en la web, nunca en el chat; tú no los ves.",
     "El código de seguridad es un CAPTCHA: no lo leas, no lo resuelvas ni lo comentes. La web ofrece «Modo audio» como alternativa y se lo puedes recordar a la persona.",
     "Pulsar «Continuar» o «Enviar datos» no significa que haya una cita. Solo hay cita cuando la web muestra una confirmación explícita.",
-    "Mapa en borrador: las direcciones respondieron el 2026-11-21 y se han observado la portada, la pantalla de acceso y los campos del formulario «Acceso con datos DNI/NIE» (accesibilidad del navegador), sin enviarlo. Las pantallas tras «Enviar datos» no se han comprobado: fíate de la página. Si una pantalla no coincide con lo descrito, vuelve a leerla y no inventes el botón."
+    "Mapa en borrador: las direcciones respondieron el 2026-11-21 y se han observado la portada, la pantalla de acceso y los campos del formulario «Acceso con datos DNI/NIE» (ids y longitudes máximas leídos del HTML de la página), sin enviarlo. Las pantallas tras «Enviar datos» no se han comprobado: fíate de la página. Si una pantalla no coincide con lo descrito, vuelve a leerla y no inventes el botón."
   ],
   "user_only": ["Enviar datos", "Aceptar", "Confirmar", "Reservar", "Anular", "Anular cita", "Validar"],
   "procedures": [
@@ -45,24 +45,21 @@
           "guidance": "Si la persona tiene el DNI a mano, abre «Acceso con datos DNI/NIE» (enlace de navegación). Si prefiere DNI electrónico, NIE o pérdida/sustracción, avísale de que esas ramas no están mapeadas y guíate por la página."
         },
         {
-          "title": "Número y letra del documento",
-          "guidance": "Señala el campo «Número de Documento» (id observado: numDocumento) y después «Letra» (letraDocumento). Los ids son solo una pista: señala siempre con la referencia de read_page, y solo si hay una única coincidencia visible. Di cuál es cada campo sin pedir que dicten el dato. Avanza solo cuando la persona pulse «Hecho, sigue»; no leas el valor ni asumas que se ha validado.",
-          "person_does": "Escribe el número y la letra de su DNI en la web, sin decirlos en el chat."
-        },
-        {
-          "title": "Equipo de expedición",
-          "guidance": "Señala «Equipo de Expedición» (codEquipo). Explica que está impreso en el documento; la página trae una imagen de ayuda y una variante para DNI 4.0 («Cambiar a DNI 4.0»).",
-          "person_does": "Busca el equipo en su documento y lo escribe."
-        },
-        {
-          "title": "Fecha de validez",
-          "guidance": "Señala «Fecha de Validez» (fechaValidez). El formato es día/mes/año con barras; la web también admite PERMANENTE.",
-          "person_does": "Escribe la fecha de validez de su DNI."
-        },
-        {
-          "title": "Número de soporte",
-          "guidance": "Señala «Número de Soporte» (numSoporte). Es el identificador del soporte físico del documento, distinto del número de DNI. La cabecera de la web dice que todos los campos son obligatorios, pero el soporte se describe solo para el DNI electrónico: indícaselo y remite a la imagen de ayuda de la página sin afirmar nada más.",
-          "person_does": "Escribe el número de soporte si su documento lo tiene (DNI electrónico)."
+          "title": "Datos del documento",
+          "guidance": "Abre el formulario del panel con show_form (form_id «datos-dni»): la persona escribe ahí los datos de su DNI y la extensión los copia a los campos de la página (ids observados: numDocumento, letraDocumento, codEquipo, fechaValidez, numSoporte) sin que tú los veas. Antes, di en una frase que tenga el DNI a mano. El soporte solo lo tiene el DNI electrónico. No señales estos campos uno a uno salvo que la persona prefiera escribirlos en la web o el formulario falle; en ese caso señala cada uno con la referencia de read_page, sin pedir que dicten el dato.",
+          "person_does": "Escribe los datos de su DNI en el formulario del panel (o en la web), sin decirlos en el chat.",
+          "form": {
+            "id": "datos-dni",
+            "title": "Datos de tu DNI",
+            "intro": "Escríbelos tal como aparecen en tu documento. Se copian a la web oficial; el código de seguridad y «Enviar datos» los haces tú después en la página.",
+            "fields": [
+              { "id": "numero", "label": "Número de documento", "target": "numDocumento", "hint": "Solo las cifras, sin la letra.", "max_length": 8, "pattern": "[0-9]{1,8}", "numeric": true },
+              { "id": "letra", "label": "Letra", "target": "letraDocumento", "max_length": 1, "pattern": "[A-Z]", "uppercase": true },
+              { "id": "equipo", "label": "Equipo de expedición", "target": "codEquipo", "hint": "Está impreso en el documento. La web tiene una imagen de ayuda.", "max_length": 9, "uppercase": true },
+              { "id": "validez", "label": "Fecha de validez", "target": "fechaValidez", "hint": "dd/mm/aaaa o PERMANENTE", "placeholder": "dd/mm/aaaa", "max_length": 10, "pattern": "[0-9]{2}/[0-9]{2}/[0-9]{4}|PERMANENTE", "uppercase": true },
+              { "id": "soporte", "label": "Número de soporte", "target": "numSoporte", "hint": "Solo para DNI electrónico. Ejemplo: AAA000000", "max_length": 9, "pattern": "[A-Z0-9]{1,9}", "uppercase": true, "optional": true }
+            ]
+          }
         },
         {
           "title": "Código de seguridad",

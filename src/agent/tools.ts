@@ -4,13 +4,18 @@ import type { ClickResult, Outline, TableData } from '../page/dom'
 import type { PageRequest } from '../page/messages'
 import { REFUSAL, isOfficialUrl } from '../policy'
 import type { ControlClass } from '../policy'
-import { PLUGINS, pluginById, pluginForUrl, searchProcedures } from '../plugins/registry'
-import type { SitePlugin } from '../plugins/schema'
+import { PLUGINS, formsOf, pluginById, pluginForUrl, searchProcedures } from '../plugins/registry'
+import type { PanelForm, SitePlugin } from '../plugins/schema'
+import { probePageForm } from './formFill'
 import { hostOf, trustOf, trustedHosts } from '../trust'
 
 // The assistant's tools. There is deliberately no tool that types, ticks, chooses, uploads or submits:
 // the only things it can do on a page are read it, open a trusted address, press a control that moves
 // around the site, and point at a control for the person. Every input is validated here before it runs.
+//
+// show_form is not an exception: it names a form that the site map declares, and nothing else. The panel
+// shows that form, the person types, and the panel copies the values to the page (formFill.ts). No value
+// passes through a tool input or a tool result.
 //
 // Finding a procedure: the site maps answer first (find_procedure); for anything they do not cover the
 // model uses Claude's web search (a server tool, declared in agent.ts) and then open_page. A site that is
@@ -27,6 +32,11 @@ export interface Browser {
   navigate(tabId: number, url: string): Promise<Tab>
 }
 
+/** A panel form to show: the map's form, and which of its fields the open page has. */
+export type FormRequest = { tabId: number; form: PanelForm; present: string[] }
+/** What happened with it, by field id. Never the values. */
+export type FormOutcome = { status: 'filled'; filled: string[]; failed: string[] } | { status: 'declined' }
+
 export type ToolHost = {
   browser: Browser
   /** Shows a question card and resolves with what the person chose or wrote. */
@@ -36,6 +46,11 @@ export type ToolHost = {
    * (and the browser granted access). The approved host then counts as trusted for this session.
    */
   approveSite(url: string, reason: string): Promise<boolean>
+  /**
+   * Shows a panel form, copies what the person typed into the page, and resolves with which fields were
+   * filled. The values stay between the panel and the page.
+   */
+  showForm?(request: FormRequest): Promise<FormOutcome>
   /** Hosts the person approved in this session. */
   approvedHosts(): string[]
   wait?(ms: number): Promise<void>
@@ -79,6 +94,9 @@ export const TOOL_INPUTS = {
     ref,
     instruction: z.string().min(2).max(140).describe('Una instrucción corta para la persona, en segunda persona: "Escribe aquí tu número de DNI", "Pulsa Confirmar cuando lo hayas revisado".'),
   }),
+  show_form: z.strictObject({
+    form_id: z.string().min(1).max(60).describe('El identificador del formulario del panel, tal como lo da get_procedure en el paso.'),
+  }),
   ask_user: z.strictObject({
     question: z.string().min(2).max(300),
     options: z.array(z.string().min(1).max(80)).max(6).describe('Respuestas rápidas. La persona también puede escribir otra cosa.'),
@@ -100,6 +118,8 @@ const DESCRIPTIONS: Record<ToolName, string> = {
     'Pulsa un control de clase {nav} (enlace oficial, pestaña, menú, desplegable fuera de formularios) para moverte por la sede. Rechaza campos, botones de acción, cualquier cosa dentro de un formulario y enlaces externos.',
   point_to:
     'Resalta en la página un control que solo puede tocar la persona (un campo, un botón de acción) con una instrucción corta. Después termina tu turno: la persona pulsará «Hecho, sigue» cuando lo haya hecho.',
+  show_form:
+    'Muestra en el panel el formulario que el mapa de la sede define para un paso (get_procedure lo indica como «Formulario del panel»). La persona escribe ahí sus datos y la extensión los copia a los campos de la página. Tú no ves ni recibes esos datos: el resultado solo dice qué campos quedaron rellenados. Úsalo en vez de señalar esos campos uno a uno. No pulsa ningún botón: enviar sigue siendo cosa de la persona.',
   ask_user: 'Hace una pregunta a la persona con respuestas rápidas. Úsalo para decisiones (qué trámite, qué forma de identificarse), nunca para pedir datos personales.',
 }
 
@@ -151,6 +171,7 @@ function describeProcedure(plugin: SitePlugin, procedureId: string): string | nu
     lines.push(`   Cómo: ${step.guidance}`)
     if (step.person_does) lines.push(`   Lo hace la persona: ${step.person_does}`)
     if (step.user_only?.length) lines.push(`   Solo los pulsa la persona: ${step.user_only.join(', ')}`)
+    if (step.form) lines.push(`   Formulario del panel: ${step.form.id} (ábrelo con show_form; rellena ${step.form.fields.map((f) => f.label).join(', ')})`)
   })
   const notes = [...(plugin.notes ?? []), ...(proc.notes ?? [])]
   if (notes.length) lines.push('', 'Notas:', ...notes.map((n) => `- ${n}`))
@@ -271,6 +292,33 @@ export async function runTool(name: string, input: unknown, host: ToolHost, stat
       const result = await host.browser.page<{ ok: boolean; error?: string }>(tab.id, { op: 'point', ref: input.ref, instruction: input.instruction, approved: host.approvedHosts() }, frameOf(input.ref))
       if (!result.ok) return error(result.error ?? 'No se pudo señalar.')
       return ok('Señalado en la página. Termina tu turno con una frase corta que repita la instrucción; la persona pulsará «Hecho, sigue» cuando lo haya hecho.', { pointed: true })
+    }
+    case 'show_form': {
+      const { form_id } = parsed.data as z.infer<typeof TOOL_INPUTS.show_form>
+      const tab = await officialTab(host)
+      if ('isError' in tab) return tab
+      const forms = formsOf(pluginForUrl(tab.url, plugins))
+      const form = forms.find((f) => f.id === form_id)
+      if (!form) {
+        return error(forms.length ? `Esta sede no tiene el formulario ${form_id}. Formularios de esta sede: ${forms.map((f) => f.id).join(', ')}.` : 'La sede abierta no tiene formularios del panel. Señala los campos con point_to.')
+      }
+      if (!host.showForm) return error('El panel no puede mostrar formularios. Señala los campos con point_to.')
+      const present = await probePageForm(host.browser, tab.id, form.id, host.approvedHosts())
+      if (!present.length) return error('Los campos de ese formulario no están en la página abierta. Lee la página y lleva a la persona a la pantalla del formulario antes de abrirlo.')
+      const outcome = await host.showForm({ tabId: tab.id, form, present })
+      if (outcome.status === 'declined') return ok('La persona no ha usado el formulario del panel. Señala los campos uno a uno con point_to para que los escriba en la web.')
+      const labels = (ids: string[]) => form.fields.filter((f) => ids.includes(f.id)).map((f) => f.label).join(', ')
+      const empty = present.filter((id) => !outcome.filled.includes(id) && !outcome.failed.includes(id))
+      return ok(
+        [
+          `La persona ha escrito sus datos en el formulario del panel y la extensión los ha copiado a la página. Rellenados: ${labels(outcome.filled) || 'ninguno'}.`,
+          outcome.failed.length ? `No se pudieron copiar: ${labels(outcome.failed)}. Señálaselos con point_to para que los escriba en la web.` : null,
+          empty.length ? `Dejó en blanco: ${labels(empty)}.` : null,
+          'No has visto los valores: no los pidas ni los repitas. Lee la página y sigue con el paso siguiente.',
+        ]
+          .filter(Boolean)
+          .join(' '),
+      )
     }
     case 'ask_user': {
       const input = parsed.data as z.infer<typeof TOOL_INPUTS.ask_user>
