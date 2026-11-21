@@ -50,39 +50,10 @@ export function ChatPanel({ chat, className }: { chat: ChatHelpers; className?: 
     .filter((m) => m.role === "user")
     .map((m) => m.parts.map((p) => (p.type === "text" ? p.text : "")).join(" ").trim())
     .filter(Boolean);
-  const composer = voiceActive ? (
-    <div
-      className={cn(
-        "flex items-center border bg-card",
-        empty
-          ? "flex-col gap-5 rounded-[24px] border-foreground/10 px-6 py-8 shadow-[0_1px_2px_rgb(0_0_0/0.04),0_20px_48px_-24px_rgb(0_0_0/0.25)]"
-          : "gap-4 rounded-2xl px-4 py-3"
-      )}
-    >
-      <VoiceOrb
-        className={empty ? "my-3" : "m-1"}
-        getLevels={voice.getLevels}
-        size={empty ? 136 : 52}
-        state={voice.status === "connecting" ? "connecting" : "live"}
-      />
-      <p className={cn("text-sm text-muted-foreground", empty ? "text-center" : "flex-1")} role="status">
-        {voice.status === "connecting" ? t.chat.voice.connecting : t.chat.voice.connected}
-      </p>
-      {voice.error && <p className="text-xs text-destructive" role="alert">{t.chat.voice[voice.error]}</p>}
-      <Button
-        aria-label={voiceLabel}
-        className={cn("rounded-full", !empty && "size-9")}
-        onClick={voice.stop}
-        size={empty ? "default" : "icon"}
-        title={voiceLabel}
-        type="button"
-        variant="destructive"
-      >
-        <PhoneOffIcon aria-hidden="true" />
-        {empty && voiceLabel}
-      </Button>
-    </div>
-  ) : (
+  // The orb is drawn at its in-call size and scaled down while idle, so it can grow in place.
+  // In a call it lifts to the vertical middle of the card and keeps an even margin around it.
+  const orb = empty ? { size: 104, rest: 52, lift: 43, inset: 8 } : { size: 62, rest: 44, lift: 19, inset: 4 };
+  const composer = (
     <PromptInput
       className={cn(
         "[&_[data-slot=input-group]]:bg-card",
@@ -96,7 +67,9 @@ export function ChatPanel({ chat, className }: { chat: ChatHelpers; className?: 
         <PromptInputTextarea
           className={cn(
             empty ? "min-h-24 px-5 pt-5 text-[17px] md:text-[17px]" : "min-h-11 px-3.5 pt-3 text-[15px] md:text-[15px]",
-            "placeholder:text-muted-foreground/70"
+            "placeholder:text-muted-foreground/70",
+            // Keeps what the person types clear of the grown orb.
+            voiceActive && (empty ? "pr-36" : "pr-24")
           )}
           placeholder={empty ? t.chat.placeholderEmpty : t.chat.placeholder}
         />
@@ -104,25 +77,70 @@ export function ChatPanel({ chat, className }: { chat: ChatHelpers; className?: 
       <PromptInputFooter className={cn(empty ? "px-4 pb-4" : "px-3 pb-3")}>
         <PromptInputTools>
           <span className="flex items-center gap-1.5 px-1 text-xs font-normal text-muted-foreground">
-            <LockIcon className="size-3 shrink-0" /> {t.chat.footnote}
+            {voiceActive ? (
+              <span role="status">{voice.status === "connecting" ? t.chat.voice.connecting : t.chat.voice.connected}</span>
+            ) : (
+              <><LockIcon className="size-3 shrink-0" /> {t.chat.footnote}</>
+            )}
           </span>
         </PromptInputTools>
         <div className="flex shrink-0 items-center gap-1">
+          {voiceActive ? (
+            <Button
+              aria-label={t.chat.voice.stop}
+              className="size-9 rounded-full"
+              onClick={voice.stop}
+              size="icon"
+              title={t.chat.voice.stop}
+              type="button"
+              variant="destructive"
+            >
+              <PhoneOffIcon aria-hidden="true" />
+            </Button>
+          ) : (
+            <PromptInputSubmit
+              className="size-9 rounded-full bg-brand-red-solid text-white hover:bg-brand-red-solid/90"
+              onStop={stop}
+              status={status}
+            />
+          )}
           <button
             aria-label={voiceLabel}
-            className="relative grid size-9 place-items-center rounded-full outline-none transition-transform hover:scale-110 focus-visible:ring-3 focus-visible:ring-ring active:scale-95"
-            onClick={() => void voice.start()}
+            aria-pressed={voiceActive}
+            className="group relative z-10 h-9 outline-none transition-[width] duration-500 ease-out motion-reduce:transition-none"
+            onClick={voiceActive ? voice.stop : () => void voice.start()}
+            style={{ width: voiceActive ? orb.size + orb.inset : orb.rest }}
             title={voiceLabel}
             type="button"
           >
-            <VoiceOrb size={32} state="idle" />
-            <MicIcon aria-hidden="true" className="absolute size-3.5 text-white drop-shadow-[0_1px_1px_rgb(0_0_0/0.35)]" />
+            <span
+              className={cn(
+                "absolute top-1/2 right-0 grid origin-right place-items-center rounded-full ring-ring transition-[transform,filter] duration-500 ease-out group-focus-visible:ring-4 motion-reduce:transition-none",
+                !voiceActive && "group-hover:brightness-110"
+              )}
+              style={{
+                width: orb.size,
+                height: orb.size,
+                marginTop: -orb.size / 2,
+                transform: voiceActive
+                  ? `translate(${-orb.inset}px, ${-orb.lift}px)`
+                  : `scale(${orb.rest / orb.size})`,
+              }}
+            >
+              <VoiceOrb
+                getLevels={voice.getLevels}
+                size={orb.size}
+                state={voice.status === "idle" ? "idle" : voice.status === "connecting" ? "connecting" : "live"}
+              />
+              <MicIcon
+                aria-hidden="true"
+                className={cn(
+                  "absolute size-[42%] text-white drop-shadow-[0_2px_2px_rgb(0_0_0/0.35)] transition-opacity duration-300",
+                  voiceActive && "opacity-0"
+                )}
+              />
+            </span>
           </button>
-          <PromptInputSubmit
-            className="size-9 rounded-full bg-brand-red-solid text-white hover:bg-brand-red-solid/90"
-            onStop={stop}
-            status={status}
-          />
         </div>
       </PromptInputFooter>
       {voice.error && <p className="px-4 pb-3 text-xs text-destructive" role="alert">{t.chat.voice[voice.error]}</p>}

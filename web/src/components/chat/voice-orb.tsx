@@ -29,6 +29,8 @@ export function VoiceOrb({
 }) {
   const wrapper = useRef<HTMLSpanElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
+  // Kept across state changes so the lights carry on from where they were.
+  const motion = useRef({ level: 0, phase: 0 });
 
   useEffect(() => {
     const element = wrapper.current;
@@ -39,8 +41,7 @@ export function VoiceOrb({
     const pixels = Math.round(size * Math.min(window.devicePixelRatio || 1, 2));
     context.canvas.width = context.canvas.height = pixels;
     const c = pixels / 2;
-    let level = 0;
-    let phase = 0;
+    let { level, phase } = motion.current;
     let last = performance.now();
     let raf = 0;
 
@@ -83,8 +84,9 @@ export function VoiceOrb({
       glow(c * 0.65, c * 0.5, c * 0.9, "rgba(255,255,255,0.35)", "rgba(255,255,255,0)");
       glow(c, c, c, "rgba(120,0,10,0)", "rgba(120,0,10,0.35)", c * 0.6);
 
+      motion.current = { level, phase };
       element.style.setProperty("--orb-level", level.toFixed(3));
-      element.style.setProperty("--orb-scale", still ? "1" : (1 + level * 0.14).toFixed(3));
+      element.style.setProperty("--orb-scale", still ? "1" : (1 + level * 0.07).toFixed(3));
       raf = requestAnimationFrame(frame);
     };
     raf = requestAnimationFrame(frame);
@@ -101,9 +103,9 @@ export function VoiceOrb({
       <span
         className="absolute inset-0 rounded-full bg-[radial-gradient(circle,#ffb400,#f20d0d_60%)]"
         style={{
-          filter: `blur(${Math.max(4, size * 0.16)}px)`,
-          opacity: "calc(0.25 + var(--orb-level, 0) * 0.6)",
-          transform: "scale(calc(var(--orb-scale, 1) * 1.05))",
+          filter: `blur(${Math.max(3, size * 0.07)}px)`,
+          opacity: "calc(0.15 + var(--orb-level, 0) * 0.45)",
+          transform: "scale(calc(var(--orb-scale, 1) * 1.02))",
         }}
       />
       <canvas
