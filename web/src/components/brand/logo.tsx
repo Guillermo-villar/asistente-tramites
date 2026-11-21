@@ -1,3 +1,4 @@
+import { useI18n } from "@/i18n/i18n";
 import { cn } from "@/lib/utils";
 import { ESCUDO_PATHS, ESCUDO_RATIO, ESCUDO_VIEWBOX } from "@/components/brand/escudo-paths";
 
@@ -42,13 +43,29 @@ export function Waves({ className }: { className?: string }) {
   );
 }
 
+/**
+ * The name, «OrientaT»: fixed in every language, mixed case so the final T stands out in
+ * colour (it reads «oriéntate» / «orienta't»). `tClassName` sets the T's colour: brand red by
+ * default, yellow on the red footer.
+ */
+export function Wordmark({ className, tClassName = "text-brand-red" }: { className?: string; tClassName?: string }) {
+  return (
+    <span className={cn("whitespace-nowrap font-slab font-bold tracking-[0.01em]", className)}>
+      Orienta<span className={tClassName}>T</span>
+    </span>
+  );
+}
+
 export function Logo({ className }: { className?: string }) {
+  const { t } = useI18n();
   return (
     <span className={cn("flex items-center gap-3", className)}>
       <LogoMark size={38} />
-      <span className="flex flex-col font-slab leading-none uppercase">
-        <span className="text-[10px] tracking-[0.32em] text-foreground/80">Asistente de</span>
-        <span className="mt-1 text-[15px] font-bold tracking-[0.2em]">Trámites</span>
+      <span className="flex flex-col leading-none">
+        <span className="font-slab text-[9px] uppercase tracking-[0.16em] text-foreground/70 max-[359px]:hidden sm:text-[10px] sm:tracking-[0.28em]">
+          {t.brand.descriptor}
+        </span>
+        <Wordmark className="mt-1 text-[22px]" />
       </span>
     </span>
   );

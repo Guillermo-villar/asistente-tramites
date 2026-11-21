@@ -1,5 +1,7 @@
 import type { ChatTransport, UIMessage, UIMessageChunk } from "ai";
 import { buscarEnCatalogo, type FichaCatalogo } from "@/data/tramites";
+import type { Lang } from "@/i18n/langs";
+import { messages } from "@/i18n/messages";
 import { extensionProcedures, findProcedure, planFor } from "@/lib/extension-catalog";
 
 /**
@@ -12,6 +14,13 @@ import { extensionProcedures, findProcedure, planFor } from "@/lib/extension-cat
  * with a server route that returns `streamText(...).toUIMessageStreamResponse()`.
  */
 export class MockTramitesTransport implements ChatTransport<UIMessage> {
+  private lang: Lang = "es";
+
+  /** Language of the next replies. The app keeps it in sync with the header's language picker. */
+  setLang(lang: Lang) {
+    this.lang = lang;
+  }
+
   async sendMessages({
     messages,
     abortSignal,
@@ -22,7 +31,7 @@ export class MockTramitesTransport implements ChatTransport<UIMessage> {
         .filter((p) => p.type === "text")
         .map((p) => p.text)
         .join(" ") ?? "";
-    return stream(responder(text), abortSignal);
+    return stream(responder(text, this.lang), abortSignal);
   }
 
   async reconnectToStream() {
@@ -36,36 +45,30 @@ type Step =
   | { kind: "text"; text: string }
   | { kind: "sources"; items: { url: string; title: string }[] };
 
-function responder(input: string): Step[] {
+// Intent keywords in every supported language (es, ca, eu, gl, en): the user may type in any of them.
+const EXTENSION = /(extensi|plugin|complement|panel lateral|luzapen|hedapen|gehigarri)/;
+const ESTADO =
+  /(estado|cómo va|como va|mis trámites|mis tramites|expedient|\bestat\b|com van|els meus tràmits|egoera|nire izapide|espediente|os meus trámites|\bstatus\b|my procedures|my applications)/;
+
+function responder(input: string, lang: Lang): Step[] {
   const t = input.toLowerCase();
+  const r = messages[lang].replies;
 
   // A trámite the extension has a site map for: show how to do it with the extension.
   const enMapa = findProcedure(input);
   if (enMapa) {
-    const plan = planFor(enMapa.site, enMapa.procedure);
+    const plan = planFor(enMapa.site, enMapa.procedure, lang);
     return [
-      {
-        kind: "reasoning",
-        text: `La extensión tiene mapa de ${plan.sitio}: «${plan.tramite}», ${plan.pasos.length} pasos. Preparo qué hace ella y qué haces tú en cada uno.`,
-      },
+      { kind: "reasoning", text: r.planReasoning(plan.sitio, plan.tramite, plan.pasos.length) },
       { kind: "tool", name: "plan_extension", input: { sitio: enMapa.site.id, tramite: enMapa.procedure.id }, output: plan, ms: 900 },
-      {
-        kind: "text",
-        text:
-          "Esto **lo puedes hacer con la extensión**, y tiene el mapa de esta web. Arriba tienes qué tener a mano, cómo se entra y qué pasará en cada paso.\n\n" +
-          "Cuando estés listo, pulsa **Hacerlo con la extensión**: se abre la web oficial con el asistente al lado y te lleva hasta el trámite." +
-          "",
-      },
-      { kind: "sources", items: [{ url: plan.url, title: `${plan.sitio} · página de inicio del trámite` }] },
+      { kind: "text", text: r.planText },
+      { kind: "sources", items: [{ url: plan.url, title: r.planSource(plan.sitio) }] },
     ];
   }
 
-  if (/(extensi|plugin|complemento|panel lateral)/.test(t)) {
+  if (EXTENSION.test(t)) {
     return [
-      {
-        kind: "reasoning",
-        text: "Explico la extensión paso a paso, separando lo que haces tú de lo que hace ella, y listo los trámites que ya conoce.",
-      },
+      { kind: "reasoning", text: r.extensionReasoning },
       {
         kind: "tool",
         name: "explicar_extension",
@@ -75,56 +78,31 @@ function responder(input: string): Step[] {
         },
         ms: 600,
       },
-      {
-        kind: "text",
-        text:
-          "En resumen: **aquí descubres qué trámite es; la extensión te lleva dentro de la web oficial.** Allí navega por ti, te explica cada pantalla y te señala dónde actuar, pero nunca escribe por ti ni pulsa enviar, firmar o pagar.\n\n" +
-          "Pulsa cualquiera de los trámites de la lista y te preparo el camino.",
-      },
+      { kind: "text", text: r.extension },
     ];
   }
 
   // Public site: there is no session, so status questions go to Carpeta Ciudadana.
-  if (/(estado|cómo va|como va|mis trámites|mis tramites|expediente)/.test(t)) {
+  if (ESTADO.test(t)) {
     return [
-      {
-        kind: "text",
-        text:
-          "Para ver el estado de **tus** expedientes tienes que identificarte en **Carpeta Ciudadana** con Cl@ve, certificado digital o DNIe: ahí aparecen los trámites abiertos con la Administración General del Estado y sus notificaciones.\n\n" +
-          "Si me dices qué trámite es, te explico en qué fase suele estar y cuánto tarda.",
-      },
-      { kind: "sources", items: [{ url: "https://carpetaciudadana.gob.es/", title: "Carpeta Ciudadana" }] },
+      { kind: "text", text: r.estado },
+      { kind: "sources", items: [{ url: "https://carpetaciudadana.gob.es/", title: r.estadoSource }] },
     ];
   }
 
-  const ficha = buscarEnCatalogo(t);
-  if (ficha) return tramiteSteps(ficha);
+  const ficha = buscarEnCatalogo(t, lang);
+  if (ficha) return tramiteSteps(ficha, lang);
 
-  return [
-    {
-      kind: "text",
-      text:
-        "Puedo ayudarte a **encontrar el trámite** que necesitas y decirte **qué tener a mano**. Luego la extensión te lleva **dentro de la web oficial**, paso a paso.\n\n" +
-        "Cuéntame qué quieres hacer, por ejemplo: *«Renovar el DNI»*, *«Necesito el NIE»* o *«¿Cómo hago la renta?»*.",
-    },
-  ];
+  return [{ kind: "text", text: r.fallback }];
 }
 
-function tramiteSteps(ficha: FichaCatalogo): Step[] {
+function tramiteSteps(f: FichaCatalogo, lang: Lang): Step[] {
+  const r = messages[lang].replies;
   return [
-    {
-      kind: "reasoning",
-      text: `La consulta encaja con «${ficha.titulo}» (${ficha.organismo}). Reviso requisitos, coste y canal de presentación.`,
-    },
-    { kind: "tool", name: "buscar_tramite", input: { consulta: ficha.titulo }, output: ficha, ms: 1100 },
-    {
-      kind: "text",
-      text:
-        `**${ficha.titulo}** se gestiona con ${ficha.organismo}. ${ficha.resumen}\n\n` +
-        `Necesitarás ${ficha.requisitos.length} cosas; te las dejo arriba como lista. ` +
-        "Cuando lo tengas, pulsa **Hacerlo con la extensión**: abre la web oficial con el asistente al lado. Aún no tiene el mapa de esta web, así que se guiará leyendo cada página.",
-    },
-    { kind: "sources", items: [{ url: ficha.url, title: `${ficha.organismo} · ficha oficial` }] },
+    { kind: "reasoning", text: r.tramiteReasoning(f.titulo, f.organismo) },
+    { kind: "tool", name: "buscar_tramite", input: { consulta: f.titulo }, output: f, ms: 1100 },
+    { kind: "text", text: r.tramiteText(f) },
+    { kind: "sources", items: [{ url: f.url, title: r.tramiteSource(f.organismo) }] },
   ];
 }
 

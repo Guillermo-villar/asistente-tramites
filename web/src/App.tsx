@@ -1,13 +1,17 @@
-import { useEffect } from "react";
 import { useChat } from "@ai-sdk/react";
+import { useEffect } from "react";
 import { ChatPanel } from "@/components/chat/chat";
 import { ExtensionSection, HeroCopy, SiteFooter, SiteHeader } from "@/components/landing/sections";
+import { useI18n } from "@/i18n/i18n";
 import { MockTramitesTransport } from "@/lib/mock-transport";
 
 const transport = new MockTramitesTransport();
 
 /** Public landing: the assistant first, then how the browser extension works. */
 export default function App() {
+  const { lang } = useI18n();
+  // Switching language changes the next replies; earlier messages stay as they were.
+  useEffect(() => transport.setLang(lang), [lang]);
   const chat = useChat({ transport });
   const ask = (text: string) => chat.sendMessage({ text });
 
