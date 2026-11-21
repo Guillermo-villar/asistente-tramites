@@ -1,5 +1,6 @@
 import type { ChatTransport, UIMessage, UIMessageChunk } from "ai";
 import { buscarEnCatalogo, type FichaCatalogo } from "@/data/tramites";
+import { extensionProcedures, findProcedure, planFor } from "@/lib/extension-catalog";
 
 /**
  * A local stand-in for the model. It speaks the AI SDK UI-message stream protocol
@@ -38,17 +39,47 @@ type Step =
 function responder(input: string): Step[] {
   const t = input.toLowerCase();
 
-  if (/(extensi|plugin|complemento|panel lateral)/.test(t)) {
+  // A trámite the extension has a site map for: show how to do it with the extension.
+  const enMapa = findProcedure(input);
+  if (enMapa) {
+    const plan = planFor(enMapa.site, enMapa.procedure);
     return [
+      {
+        kind: "reasoning",
+        text: `La extensión tiene mapa de ${plan.sitio}: «${plan.tramite}», ${plan.pasos.length} pasos. Preparo qué hace ella y qué haces tú en cada uno.`,
+      },
+      { kind: "tool", name: "plan_extension", input: { sitio: enMapa.site.id, tramite: enMapa.procedure.id }, output: plan, ms: 900 },
       {
         kind: "text",
         text:
-          "La extensión es un **panel lateral en tu navegador** que se abre junto a la web oficial (Agencia Tributaria, Seguridad Social, DGT, SEPE, tu ayuntamiento…). Funciona así:\n\n" +
-          "1. **Le dices qué quieres hacer**, con tus palabras: *«quiero ver mi borrador de la renta»*.\n" +
-          "2. **Te lleva a la página correcta**: sigue enlaces y abre menús y pestañas por ti, solo dentro de las webs oficiales que conoce.\n" +
-          "3. **Te señala dónde escribir**: rodea cada casilla con un recuadro amarillo y te dice qué poner, por ejemplo *«Tu DNI, con la letra»*.\n" +
-          "4. **Tú escribes, firmas y presentas.** La extensión nunca rellena tus datos, ni elige opciones, ni pulsa botones que envían, firman, pagan o guardan.\n\n" +
-          "Así no te pierdes en la sede, y todo lo que se presenta lo has hecho tú. Estará disponible pronto para Chrome y Safari.",
+          "Esto **lo puedes hacer con la extensión**, y tiene el mapa de esta web. Arriba tienes qué tener a mano, cómo se entra y qué pasará en cada paso.\n\n" +
+          "Cuando estés listo, pulsa **Hacerlo con la extensión**: se abre la web oficial con el asistente al lado y te lleva hasta el trámite." +
+          "",
+      },
+      { kind: "sources", items: [{ url: plan.url, title: `${plan.sitio} · página de inicio del trámite` }] },
+    ];
+  }
+
+  if (/(extensi|plugin|complemento|panel lateral)/.test(t)) {
+    return [
+      {
+        kind: "reasoning",
+        text: "Explico la extensión paso a paso, separando lo que haces tú de lo que hace ella, y listo los trámites que ya conoce.",
+      },
+      {
+        kind: "tool",
+        name: "explicar_extension",
+        input: {},
+        output: {
+          tramites: extensionProcedures.map(({ site, procedure }) => ({ titulo: procedure.title, sitio: site.name })),
+        },
+        ms: 600,
+      },
+      {
+        kind: "text",
+        text:
+          "En resumen: **aquí descubres qué trámite es; la extensión te lleva dentro de la web oficial.** Allí navega por ti, te explica cada pantalla y te señala dónde actuar, pero nunca escribe por ti ni pulsa enviar, firmar o pagar.\n\n" +
+          "Pulsa cualquiera de los trámites de la lista y te preparo el camino.",
       },
     ];
   }
@@ -66,37 +97,6 @@ function responder(input: string): Step[] {
     ];
   }
 
-  if (/reserv/.test(t)) {
-    const ficha = buscarEnCatalogo(t) ?? buscarEnCatalogo("nie")!;
-    return [
-      {
-        kind: "text",
-        text:
-          "Perfecto. Te abro la página oficial de cita previa con la oficina y la fecha que has elegido. **La reserva la confirmas tú allí**, con tus datos; yo no envío nada en tu nombre.",
-      },
-      { kind: "sources", items: [{ url: ficha.url, title: `Cita previa · ${ficha.organismo}` }] },
-    ];
-  }
-
-  if (/\bcita\b/.test(t)) {
-    const ficha = buscarEnCatalogo(t) ?? buscarEnCatalogo("nie")!;
-    return [
-      { kind: "reasoning", text: `Busco huecos libres para «${ficha.titulo}» en las oficinas de Madrid.` },
-      {
-        kind: "tool",
-        name: "buscar_cita",
-        input: { tramite: ficha.id, provincia: "Madrid" },
-        output: { tramite: ficha.titulo, huecos: huecosPara(ficha) },
-        ms: 1400,
-      },
-      {
-        kind: "text",
-        text: "He encontrado **3 huecos**. Elige uno y te llevo a la página oficial de cita previa; **la confirmación la haces tú**.",
-      },
-      { kind: "sources", items: [{ url: ficha.url, title: `Cita previa · ${ficha.organismo}` }] },
-    ];
-  }
-
   const ficha = buscarEnCatalogo(t);
   if (ficha) return tramiteSteps(ficha);
 
@@ -104,31 +104,10 @@ function responder(input: string): Step[] {
     {
       kind: "text",
       text:
-        "Puedo ayudarte a **encontrar el trámite** que necesitas, decirte **qué documentos llevar**, **buscar cita** y explicarte **cada paso**.\n\n" +
-        "Cuéntame qué quieres hacer, por ejemplo: *«Necesito el NIE»*, *«¿Cómo hago la renta?»* o *«Me he quedado en paro»*.",
+        "Puedo ayudarte a **encontrar el trámite** que necesitas y decirte **qué tener a mano**. Luego la extensión te lleva **dentro de la web oficial**, paso a paso.\n\n" +
+        "Cuéntame qué quieres hacer, por ejemplo: *«Renovar el DNI»*, *«Necesito el NIE»* o *«¿Cómo hago la renta?»*.",
     },
   ];
-}
-
-/** Demo slots (fictional), named after the kind of office that handles the trámite. */
-function huecosPara(ficha: FichaCatalogo) {
-  const oficinas =
-    ficha.id === "nie"
-      ? [
-          { oficina: "Comisaría de Aluche", direccion: "C/ Las Matas, 6" },
-          { oficina: "Comisaría de Moratalaz", direccion: "C/ Fuente Carrantona, 12" },
-          { oficina: "Oficina de Extranjería de Madrid", direccion: "C/ Manuel Luna, 29" },
-        ]
-      : ["Centro", "Chamberí", "Arganzuela"].map((zona) => ({
-          oficina: `${ficha.organismo.split(" · ")[0]} · ${zona}`,
-          direccion: "Madrid",
-        }));
-  const slots = [
-    { fecha: "2026-11-26", hora: "09:20" },
-    { fecha: "2026-11-27", hora: "12:40" },
-    { fecha: "2026-12-02", hora: "10:00" },
-  ];
-  return oficinas.map((o, i) => ({ ...o, ...slots[i]! }));
 }
 
 function tramiteSteps(ficha: FichaCatalogo): Step[] {
@@ -143,7 +122,7 @@ function tramiteSteps(ficha: FichaCatalogo): Step[] {
       text:
         `**${ficha.titulo}** se gestiona con ${ficha.organismo}. ${ficha.resumen}\n\n` +
         `Necesitarás ${ficha.requisitos.length} cosas; te las dejo arriba como lista. ` +
-        "Si quieres, **te busco cita** o te explico cada paso; tú revisas y firmas siempre.",
+        "Cuando lo tengas, pulsa **Hacerlo con la extensión**: abre la web oficial con el asistente al lado. Aún no tiene el mapa de esta web, así que se guiará leyendo cada página.",
     },
     { kind: "sources", items: [{ url: ficha.url, title: `${ficha.organismo} · ficha oficial` }] },
   ];

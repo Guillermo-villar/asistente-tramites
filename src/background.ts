@@ -1,3 +1,7 @@
+import { WEB_ORIGINS, pendingKey } from './handoff'
+import type { HandoffRequest, HandoffResponse, PendingTask } from './handoff'
+import { trustOf } from './trust'
+
 // The toolbar button opens the side panel on any tab. The assistant itself only reads and moves on the
 // official sites listed in the site maps; elsewhere the panel explains that it cannot help on that page.
 
@@ -37,4 +41,54 @@ if (hasSidePanel) {
       if (stored[PANEL_WINDOW_KEY] === windowId) await chrome.storage.session.remove(PANEL_WINDOW_KEY)
     })
   })
+}
+
+// Hand-off from the website (see src/handoff.ts): open the official site in a new tab, open the panel,
+// and leave the task for the panel to start on that tab.
+chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) => {
+  const request = message as HandoffRequest | null
+  if (request?.type !== 'handoff') return false
+  const origin = sender.origin ?? (sender.url ? new URL(sender.url).origin : undefined)
+  if (sender.id !== chrome.runtime.id || !origin || !WEB_ORIGINS.includes(origin)) {
+    sendResponse({ ok: false, reason: 'origin' } satisfies HandoffResponse)
+    return false
+  }
+  // Open the panel first, synchronously in the listener, while Chrome may still count the person's click
+  // on the website as the user gesture sidePanel.open() requires. If it refuses, the badge says where to click.
+  const windowId = sender.tab?.windowId
+  const panel: Promise<boolean> =
+    hasSidePanel && windowId !== undefined ? chrome.sidePanel.open({ windowId }).then(() => true, () => false) : Promise.resolve(false)
+  void startHandoff(request, sender.tab, panel).then(sendResponse)
+  return true
+})
+
+async function startHandoff(request: HandoffRequest, from: chrome.tabs.Tab | undefined, panel: Promise<boolean>): Promise<HandoffResponse> {
+  let url: URL
+  try {
+    url = new URL(request.url)
+  } catch {
+    return { ok: false, reason: 'url' }
+  }
+  // Only sites the assistant may use without asking: mapped ones and public-administration domains.
+  const trust = trustOf(url.href)
+  if (url.protocol !== 'https:' || (trust !== 'mapped' && trust !== 'government')) return { ok: false, reason: 'url' }
+
+  const tab = await chrome.tabs
+    .create({ url: url.href, active: true, windowId: from?.windowId, index: from?.index !== undefined ? from.index + 1 : undefined, openerTabId: from?.id })
+    .catch(() => undefined)
+  if (tab?.id === undefined) return { ok: false, reason: 'tab' }
+  const task: PendingTask = { text: request.text, url: url.href, at: Date.now() }
+  await chrome.storage.session.set({ [pendingKey(tab.id)]: task })
+
+  if (!hasSidePanel) {
+    await openPanelWindow(tab.windowId)
+    return { ok: true, panel: true }
+  }
+  const opened = await panel
+  if (!opened) {
+    await chrome.action.setBadgeBackgroundColor({ tabId: tab.id, color: '#F20D0D' })
+    await chrome.action.setBadgeText({ tabId: tab.id, text: '1' })
+    await chrome.action.setTitle({ tabId: tab.id, title: 'Pulsa para seguir con tu trámite' })
+  }
+  return { ok: true, panel: opened }
 }

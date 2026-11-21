@@ -34,6 +34,35 @@ Tool results render as UI ("generative UI") in `src/components/chat/tool-cards.t
 
 Card buttons send follow-ups to the chat through `AskContext`.
 
+## The flow: discovery on the web, hand-off to the extension
+
+This web is for **discovery**: what trámite it is, what you need, how you sign in. The **extension** then guides you inside the official site. Every trámite card has a «Hacerlo con la extensión» button that hands off. The protocol is in `src/handoff.ts` at the repo root:
+
+1. The web (`src/lib/extension-bridge.ts`) posts `{source: "asistente-tramites-web", type: "start", id, text, url}` to its own window.
+2. The extension's **bridge** content script (`src/web/bridge.ts`) only runs on `WEB_ORIGINS`, which is localhost:5173 for now. It forwards the request to the background. On load it also answers `ping` with `ready`, which is how the web knows the extension is installed: the green dot in the header, and the button instead of "Instala la extensión".
+3. The **background** checks that the sender is one of the `WEB_ORIGINS` and that the URL is https on a mapped or public-administration site. It tries `sidePanel.open()` while the click still counts as a user gesture, opens the URL in a new tab next to the web, and stores the task in `chrome.storage.session` under `handoff:<tabId>`. If the panel didn't open, it puts a red "1" badge on the toolbar icon for that tab.
+4. The **panel** (`src/ui/App.tsx`) sees a pending task for its active tab and sends it as the first message. Tasks older than 10 minutes are dropped. The assistant then uses the site map to take you to the trámite.
+
+**To ship:** add the production origin of this web to `WEB_ORIGINS` (the manifest's `content_scripts` is generated from it in `build.mjs`).
+
+**Not tested end to end yet.** Branded Chrome no longer loads unpacked extensions from the command line, so this needs a manual run: build the extension, load `dist/` unpacked in `chrome://extensions`, open http://localhost:5173 and press the button. The main unknown is whether `sidePanel.open()` accepts the forwarded click; if it doesn't, the badge fallback kicks in.
+
+## What the extension can do: shared site maps
+
+`src/lib/extension-catalog.ts` imports `plugins/index.ts` from the repo root. Those are the same site maps (`plugins/*.json`) the extension loads, so the web always knows which trámites the extension can guide. Add a map there and it shows up on the web.
+
+- `findProcedure(text)` matches a question against each procedure's `keywords` and `title`. A keyword matches when all its words appear in the question; longer keywords win.
+- `planFor()` turns a procedure into what the person sees: what to have ready, how to sign in, each step split into "Tú" (from `person_does`) and "Extensión", and how to start (open `entry_url`, open the panel, type the trámite's name).
+- `vite.config.ts` allows `..` so the dev server can read `../plugins`, and `tsconfig.app.json` has `resolveJsonModule`.
+
+What the chat does:
+
+- "¿Cómo funciona la extensión?", including from the header button: the `explicar_extension` card. It shows 6 steps, each in two lanes (Tú / Extensión), plus the trámites it already knows; clicking one asks for its plan.
+- A trámite that's in a site map: the `plan_extension` card, with the hand-off.
+- A trámite that's only in the web catalogue (NIE, renta…): the procedure card, also with the hand-off. All catalogue URLs are on gob.es, so the extension can open them; it guides by reading the page, since it has no map for them. The fake appointment slots (`buscar_cita`) were removed.
+
+`?q=…` in the URL opens the page with that question already asked. Useful for links from the extension or for sharing.
+
 ## Data
 
 `src/data/tramites.ts`: a catalogue of 8 common trámites. The links point to the real official portals; the summaries are a simplified guide. The earlier logged-in demo data (expedientes, activity) was removed and is in git history (commit a58f9e5).
@@ -55,9 +84,14 @@ Next to it, the wordmark is ours («Asistente de Trámites»), not «Gobierno de
 
 `src/App.tsx` holds the `useChat`. The sections are in `src/components/landing/sections.tsx`:
 
-1. Header: logo and a link to "La extensión".
+1. Header: logo, and a "La extensión" button that asks the chat how the extension works and scrolls to it.
 2. Hero (`#asistente`): one question as the headline, with `ChatPanel` (`src/components/chat/chat.tsx`) centred below it.
-3. La extensión (`#extension`): a browser mock with a highlighted field and the side panel, 4 steps, and "what it does / what it never does" (mirrors `src/policy.ts` in the extension). It's marked "Próximamente para Chrome y Safari".
+3. La extensión (`#extension`):
+   - A browser mock with a highlighted field and the side panel.
+   - 4 steps.
+   - "What it does / what it never does" (mirrors `src/policy.ts` in the extension).
+   - "Lo que ya sabe hacer": every procedure from the site maps, each one asks the chat for its plan.
+   - Marked "Próximamente para Chrome y Safari".
 4. Red footer: yellow escudo, short disclaimer and credit.
 
 ## Next steps

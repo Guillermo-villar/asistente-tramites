@@ -1,20 +1,31 @@
-import { CheckIcon, PuzzleIcon, XIcon } from "lucide-react";
+import { ArrowRightIcon, CheckIcon, PuzzleIcon, XIcon } from "lucide-react";
 import { Logo, LogoMark, Waves } from "@/components/brand/logo";
+import { useExtensionInstalled } from "@/lib/extension-bridge";
+import { siteMaps } from "@/lib/extension-catalog";
 import { cn } from "@/lib/utils";
 
-export function SiteHeader() {
+export const scrollToChat = () =>
+  document.getElementById("asistente")?.scrollIntoView({ behavior: "smooth", block: "start" });
+
+export function SiteHeader({ onAsk }: { onAsk: (text: string) => void }) {
+  const installed = useExtensionInstalled();
   return (
     <header className="sticky top-0 z-40 border-b bg-background/85 backdrop-blur">
       <div className="mx-auto flex h-16 max-w-5xl items-center justify-between gap-6 px-4 sm:px-6">
         <a href="#top">
           <Logo />
         </a>
-        <a
+        <button
           className="inline-flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-sm transition-colors hover:border-foreground/30"
-          href="#extension"
+          onClick={() => {
+            onAsk("¿Cómo funciona la extensión?");
+            scrollToChat();
+          }}
+          type="button"
         >
           <PuzzleIcon className="size-4 text-brand-red" /> La extensión
-        </a>
+          {installed && <span className="size-1.5 rounded-full bg-status-done" title="Instalada en este navegador" />}
+        </button>
       </div>
     </header>
   );
@@ -29,8 +40,10 @@ export function Eyebrow({ children, className }: { children: React.ReactNode; cl
 export function HeroCopy() {
   return (
     <div className="mx-auto max-w-2xl text-center">
-      <h1 className="font-slab text-4xl leading-[1.1] tracking-tight sm:text-5xl">¿Qué trámite tienes que hacer?</h1>
-      <p className="mx-auto mt-4 max-w-lg text-lg leading-relaxed text-muted-foreground">
+      <h1 className="font-slab text-4xl leading-[1.1] tracking-tight text-balance sm:text-[52px]">
+        ¿Qué trámite tienes que hacer?
+      </h1>
+      <p className="mx-auto mt-4 max-w-md text-lg leading-relaxed text-balance text-muted-foreground">
         Pregúntalo con tus palabras. Te decimos qué es, qué necesitas y dónde hacerlo.
       </p>
     </div>
@@ -39,33 +52,33 @@ export function HeroCopy() {
 
 const pasos = [
   {
-    titulo: "Ábrela junto a la sede",
-    texto: "Un panel lateral en tu navegador, al lado de la web oficial: Agencia Tributaria, Seguridad Social, DGT…",
+    titulo: "Descubre aquí qué trámite es",
+    texto: "Pregunta en esta web con tus palabras. Te decimos qué trámite es, qué tener a mano y cómo se entra.",
   },
   {
-    titulo: "Dile qué quieres hacer",
-    texto: "«Quiero ver mi borrador de la renta». No hace falta saber cómo se llama el trámite.",
+    titulo: "Pulsa «Hacerlo con la extensión»",
+    texto: "Se abre la web oficial en una pestaña nueva, con el asistente en un panel al lado.",
   },
   {
-    titulo: "Te lleva a la página correcta",
-    texto: "Navega por ti: sigue enlaces, abre menús y pestañas hasta llegar al formulario.",
+    titulo: "Te lleva hasta el trámite",
+    texto: "Ya sabe qué quieres hacer: sigue enlaces, abre menús y pestañas hasta llegar al formulario.",
   },
   {
-    titulo: "Te señala dónde escribir",
+    titulo: "Te señala dónde actuar",
     texto: "Marca cada casilla con un recuadro y te dice qué poner. Tú escribes, firmas y presentas.",
   },
 ];
 
-export function ExtensionSection() {
+export function ExtensionSection({ onAsk }: { onAsk: (text: string) => void }) {
   return (
     <section className="scroll-mt-16 border-t" id="extension">
       <div className="mx-auto max-w-5xl px-4 py-20 sm:px-6">
         <div className="max-w-2xl">
           <Eyebrow>La extensión</Eyebrow>
-          <h2 className="mt-3 font-slab text-3xl tracking-tight sm:text-4xl">Te acompaña dentro de la web oficial.</h2>
+          <h2 className="mt-3 font-slab text-3xl tracking-tight sm:text-4xl">De aquí, a dentro de la web oficial.</h2>
           <p className="mt-4 text-muted-foreground">
-            El chat te orienta. La extensión va un paso más allá: te guía por la propia sede electrónica, pantalla a
-            pantalla, sin hacer nada en tu nombre.
+            Aquí descubres qué tienes que hacer. Con un clic, la extensión abre la web oficial y te guía dentro de ella,
+            pantalla a pantalla, sin hacer nada en tu nombre.
           </p>
         </div>
 
@@ -92,6 +105,37 @@ export function ExtensionSection() {
             ok={false}
             title="Lo que nunca hace"
           />
+        </div>
+
+        <div className="mt-14">
+          <h3 className="font-semibold">Lo que ya sabe hacer</h3>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Pulsa uno: te decimos qué necesitas y lo abres con la extensión.
+          </p>
+          <div className="mt-5 grid gap-6 md:grid-cols-2">
+            {siteMaps.map((site) => (
+              <div key={site.id}>
+                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{site.name}</p>
+                <ul className="mt-2 divide-y rounded-xl border">
+                  {site.procedures.map((p) => (
+                    <li key={p.id}>
+                      <button
+                        className="flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left text-sm transition-colors hover:bg-muted/50 hover:text-brand-red"
+                        onClick={() => {
+                          onAsk(`¿Cómo hago «${p.title}» con la extensión?`);
+                          scrollToChat();
+                        }}
+                        type="button"
+                      >
+                        {p.title}
+                        <ArrowRightIcon className="size-3.5 shrink-0 text-muted-foreground" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
         </div>
 
         <p className="mt-10 inline-flex items-center gap-2 rounded-full bg-muted px-4 py-2 text-sm">
@@ -141,7 +185,7 @@ function BrowserMock({ className }: { className?: string }) {
           <span className="size-2.5 rounded-full bg-foreground/15" />
           <span className="size-2.5 rounded-full bg-foreground/15" />
         </span>
-        <span className="truncate rounded-md bg-background px-3 py-1 font-mono text-[11px] text-muted-foreground">
+        <span className="min-w-0 truncate rounded-md bg-background px-3 py-1 font-mono text-[11px] text-muted-foreground">
           sede.agenciatributaria.gob.es/Sede/Renta.html
         </span>
       </div>

@@ -23,6 +23,8 @@ const entries = [
   { entryPoints: ['src/background.ts'], outfile: `${outdir}/background.js`, format: safari ? 'iife' : 'esm' },
   // Injected with chrome.scripting.executeScript, so it must be one classic script.
   { entryPoints: ['src/page/content.ts'], outfile: `${outdir}/content.js`, format: 'iife' },
+  // Declared content script on the website only (WEB_ORIGINS): the hand-off bridge (src/handoff.ts).
+  { entryPoints: ['src/web/bridge.ts'], outfile: `${outdir}/bridge.js`, format: 'iife' },
 ]
 
 /** The logo (public/logo.svg), drawn in dark indigo on a transparent background. */
@@ -57,6 +59,13 @@ async function govDomains() {
  * The manifest. Host access comes from the site maps and the public-administration domains; any other site
  * is requested at run time, one site at a time, when the person approves it (optional_host_permissions).
  */
+/** The website origins allowed to hand tasks to the extension (WEB_ORIGINS in src/handoff.ts). */
+async function webOrigins() {
+  const source = await readFile('src/handoff.ts', 'utf8')
+  const list = /WEB_ORIGINS = \[([\s\S]*?)\]/.exec(source)?.[1] ?? ''
+  return [...list.matchAll(/'(https?:\/\/[^']+)'/g)].map((m) => m[1])
+}
+
 async function manifest() {
   const domains = [...new Set([...(await pluginDomains()), ...(await govDomains())])].sort()
   const hosts = domains.flatMap((d) => [`https://${d}/*`, `https://*.${d}/*`])
@@ -74,6 +83,7 @@ async function manifest() {
     permissions: ['sidePanel', 'storage', 'scripting', 'tabs'],
     host_permissions: [...hosts, 'https://api.anthropic.com/*'],
     optional_host_permissions: ['https://*/*'],
+    content_scripts: [{ matches: (await webOrigins()).map((o) => `${o}/*`), js: ['bridge.js'], run_at: 'document_start' }],
   }
 }
 

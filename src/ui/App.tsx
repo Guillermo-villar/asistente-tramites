@@ -8,6 +8,8 @@ import { activeTab, chromeBrowser, clearHighlight } from '../agent/chromeBrowser
 import { ToolState } from '../agent/tools'
 import type { Tab } from '../agent/tools'
 import { trackUserWindow, windowMode } from '../agent/userWindow'
+import { PENDING_TTL_MS, handoffMessage, pendingKey } from '../handoff'
+import type { PendingTask } from '../handoff'
 import { pluginForUrl } from '../plugins/registry'
 import { hostOf, trustOf } from '../trust'
 import { Activity, LiveStatus } from './Activity'
@@ -377,6 +379,28 @@ export function App() {
     },
     [apiKey, running, settings.effort, settings.model],
   )
+
+  // A task handed over from the website (src/handoff.ts): when the panel is on the tab the background
+  // opened for it, start it as the first message. Checked again whenever session storage changes, for a
+  // panel that was already open when the hand-off arrived.
+  const tabId = tab?.id
+  useEffect(() => {
+    if (!ready || !apiKey || running || tabId === undefined) return
+    const key = pendingKey(tabId)
+    const check = async () => {
+      const task = (await chrome.storage.session.get(key))[key] as PendingTask | undefined
+      if (!task) return
+      await chrome.storage.session.remove(key)
+      void chrome.action.setBadgeText({ tabId, text: '' }).catch(() => undefined)
+      if (Date.now() - task.at < PENDING_TTL_MS) void send(handoffMessage(task))
+    }
+    void check()
+    const onChanged = (changes: Record<string, chrome.storage.StorageChange>, area: string) => {
+      if (area === 'session' && changes[key]?.newValue) void check()
+    }
+    chrome.storage.onChanged.addListener(onChanged)
+    return () => chrome.storage.onChanged.removeListener(onChanged)
+  }, [ready, apiKey, running, tabId, send])
 
   const answer = (id: string, value: string) => {
     patch(id, { answer: value })
