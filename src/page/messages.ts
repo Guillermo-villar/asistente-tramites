@@ -8,3 +8,5 @@ export type PageRequest =
   | { op: 'click'; ref: string; approved?: string[] }
   | { op: 'point'; ref: string; instruction: string; approved?: string[] }
   | { op: 'clear' }
+  // The "assistant at work" border (frame.ts). `on: false` hides it on any page, like `clear`.
+  | { op: 'frame'; on: boolean; label?: string; approved?: string[] }

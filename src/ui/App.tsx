@@ -5,7 +5,7 @@ import type { FormEvent, KeyboardEvent } from 'react'
 import { createClient, runTurn } from '../agent/agent'
 import { createLocalClient } from '../agent/localClient'
 import type { TurnResult } from '../agent/agent'
-import { activeTab, chromeBrowser, clearHighlight } from '../agent/chromeBrowser'
+import { FRAME_RENEW_MS, activeTab, chromeBrowser, clearHighlight, setWorkingFrame } from '../agent/chromeBrowser'
 import { ToolState } from '../agent/tools'
 import type { Tab } from '../agent/tools'
 import { trackUserWindow, windowMode } from '../agent/userWindow'
@@ -34,6 +34,8 @@ const STARTERS: { label: string; hint: string }[] = [
 ]
 
 const DONE_MESSAGE = 'Hecho, sigue.'
+const FRAME_WORKING = 'El asistente está leyendo esta página'
+const FRAME_WAITING = 'El asistente te espera en el panel'
 
 function errorText(err: unknown): string {
   if (err instanceof Anthropic.AuthenticationError) return 'La clave de API no es válida. Revísala en Ajustes.'
@@ -265,6 +267,9 @@ export function App() {
   const history = useRef<BetaMessageParam[]>([])
   const toolState = useRef(new ToolState())
   const abort = useRef<AbortController | null>(null)
+  // Bumped by «Nueva»: a turn from an earlier conversation may still be finishing a page action, and
+  // whatever it reports afterwards must not reach the new conversation or keep the panel busy.
+  const generation = useRef(0)
   const answers = useRef(new Map<string, (answer: string) => void>())
   const siteAnswers = useRef(new Map<string, (approved: boolean) => void>())
   const logEnd = useRef<HTMLDivElement | null>(null)
@@ -333,6 +338,8 @@ export function App() {
       const controller = new AbortController()
       abort.current = controller
       setRunning(true)
+      const gen = generation.current
+      const live = () => generation.current === gen
       const runId = newId('run')
       const assistantIds = new Map<number, string>()
       try {
@@ -348,6 +355,7 @@ export function App() {
             approvedHosts: () => approvedRef.current,
             ask: (question, options) =>
               new Promise<string>((resolve) => {
+                if (!live()) return resolve('(la persona ha empezado una conversación nueva)')
                 const id = newId('ask')
                 answers.current.set(id, resolve)
                 push({ kind: 'ask', id, question, options })
@@ -356,7 +364,7 @@ export function App() {
             approveSite: (url, reason) =>
               new Promise<boolean>((resolve) => {
                 const host = hostOf(url)
-                if (!host) return resolve(false)
+                if (!host || !live()) return resolve(false)
                 const id = newId('site')
                 siteAnswers.current.set(id, resolve)
                 push({ kind: 'site', id, url, host, reason })
@@ -365,6 +373,7 @@ export function App() {
           },
           events: {
             text(delta, turn) {
+              if (!live()) return
               const known = assistantIds.get(turn)
               if (known) {
                 setItems((prev) => prev.map((item) => (item.id === known && item.kind === 'assistant' ? { ...item, text: item.text + delta } : item)))
@@ -375,32 +384,39 @@ export function App() {
               }
             },
             toolStart(id, name, input) {
+              if (!live()) return
               record('tool_start', { name, input })
               push({ kind: 'tool', id, name, label: labelFor(name, input), status: 'running' })
             },
             toolEnd(id, name, outcome) {
+              if (!live()) return
               record('tool_end', { name, outcome })
               const label = name === 'web_search' && outcome.content ? labelFor(name, { query: outcome.content }) : undefined
               patch(id, { status: outcome.isError ? 'error' : 'done', ...(label ? { label } : {}) })
             },
             sources(found) {
+              if (!live()) return
               const unique = [...new Map(found.map((s) => [s.url, s])).values()].slice(0, 8)
               push({ kind: 'sources', id: newId('sources'), sources: unique })
             },
           },
         })
+        if (!live()) return
         const notice = stopNotice(result)
         if (notice) push({ kind: 'notice', id: newId('notice'), text: notice, tone: 'info' })
         setAwaitingDone(result.pointed && result.stop !== 'aborted')
       } catch (err) {
+        if (!live()) return
         record('error', { message: errorText(err) })
         push({ kind: 'notice', id: newId('notice'), text: errorText(err), tone: 'error' })
       } finally {
-        abort.current = null
-        setRunning(false)
-        setItems((prev) =>
-          prev.map((item) => (item.kind === 'tool' && item.status === 'running' ? { ...item, status: 'error' } : item.kind === 'site' && !item.answer ? { ...item, answer: 'declined' } : item)),
-        )
+        if (live()) {
+          abort.current = null
+          setRunning(false)
+          setItems((prev) =>
+            prev.map((item) => (item.kind === 'tool' && item.status === 'running' ? { ...item, status: 'error' } : item.kind === 'site' && !item.answer ? { ...item, answer: 'declined' } : item)),
+          )
+        }
       }
     },
     [apiKey, usable, running, settings.effort, settings.model, settings.provider],
@@ -455,9 +471,16 @@ export function App() {
   }
 
   const clearChat = () => {
+    // Stop the running turn and let go of it at once: the new conversation starts now, even if the old
+    // turn is still waiting for a page to load. It gets fresh state, so the old turn cannot touch it.
     abort.current?.abort()
+    abort.current = null
+    generation.current += 1
+    setRunning(false)
+    answers.current.clear()
+    siteAnswers.current.clear()
     history.current = []
-    toolState.current.reset()
+    toolState.current = new ToolState()
     setItems([])
     setAwaitingDone(false)
     void clearHighlight()
@@ -475,6 +498,32 @@ export function App() {
   const rows = useMemo(() => toRows(items), [items])
   const last = rows[rows.length - 1]
   const waitingOnPerson = last?.kind === 'ask' || (last?.kind === 'site' && !last.answer)
+
+  // While the assistant works, a coloured frame around the person's page says it is reading and moving
+  // around there (src/page/frame.ts). Re-sent after each page load and renewed on a timer, because the
+  // frame expires by itself in case the panel closes mid-turn. Removed as soon as the turn ends.
+  const frameLabel = useRef(FRAME_WORKING)
+  frameLabel.current = waitingOnPerson ? FRAME_WAITING : FRAME_WORKING
+  useEffect(() => {
+    if (!running || tabId === undefined) return
+    const show = () => void setWorkingFrame(tabId, true, approvedRef.current, frameLabel.current)
+    const onUpdated = (id: number, info: chrome.tabs.OnUpdatedInfo) => {
+      if (id === tabId && info.status === 'complete') show()
+    }
+    show()
+    const timer = setInterval(show, FRAME_RENEW_MS)
+    chrome.tabs.onUpdated.addListener(onUpdated)
+    return () => {
+      clearInterval(timer)
+      chrome.tabs.onUpdated.removeListener(onUpdated)
+      void setWorkingFrame(tabId, false, [])
+    }
+  }, [running, tabId])
+
+  // A new label right away when the assistant starts or stops waiting for the person.
+  useEffect(() => {
+    if (running && tabId !== undefined) void setWorkingFrame(tabId, true, approvedRef.current, frameLabel.current)
+  }, [waitingOnPerson, running, tabId])
 
   if (!ready) return (
     <div className="app">

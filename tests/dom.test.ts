@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { Registry, guidedClick, readOutline, readTable, redact } from '../src/page/dom'
+import { FRAME_TTL_MS, frameShown, hideFrame, showFrame } from '../src/page/frame'
 import { clearGuide, guideShown, showGuide } from '../src/page/guide'
 import { PLUGINS } from '../src/plugins/registry'
 import type { PolicyContext } from '../src/policy'
@@ -173,6 +174,36 @@ describe('guide highlight', () => {
     clearGuide()
     expect(document.getElementById('asistente-tramites-guide')).toBeNull()
     expect(guideShown()).toBe(false)
+  })
+})
+
+describe('assistant-at-work frame', () => {
+  it('shows one frame outside the outline, renews it, and hides it', () => {
+    document.body.innerHTML = PAGE
+    showFrame('El asistente está leyendo esta página')
+    showFrame('El asistente te espera en el panel')
+    expect(document.querySelectorAll('#asistente-tramites-frame')).toHaveLength(1)
+    expect(frameShown()).toBe(true)
+    const { outline } = readOutline(document, new Registry(), CTX)
+    expect(outline).not.toContain('El asistente')
+    hideFrame()
+    expect(document.getElementById('asistente-tramites-frame')).toBeNull()
+    expect(frameShown()).toBe(false)
+  })
+
+  it('goes away by itself when the panel stops renewing it', () => {
+    vi.useFakeTimers()
+    try {
+      showFrame('El asistente está leyendo esta página')
+      vi.advanceTimersByTime(FRAME_TTL_MS - 1000)
+      showFrame('El asistente está leyendo esta página')
+      vi.advanceTimersByTime(FRAME_TTL_MS - 1000)
+      expect(frameShown()).toBe(true)
+      vi.advanceTimersByTime(1000)
+      expect(frameShown()).toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
 
