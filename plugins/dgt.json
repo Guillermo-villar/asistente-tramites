@@ -1,0 +1,104 @@
+{
+  "id": "dgt",
+  "name": "DGT (Sede electrónica de Tráfico)",
+  "authority": "Dirección General de Tráfico",
+  "level": "estatal",
+  "status": "draft",
+  "domains": ["dgt.gob.es"],
+  "home": "https://sede.dgt.gob.es/es/",
+  "notes": [
+    "La sede de la DGT agrupa los trámites por temas: permisos de conducir, vehículos, multas y otros trámites.",
+    "Mapa en borrador: las direcciones respondieron el 2026-11-21, pero nadie ha recorrido los trámites con sesión iniciada."
+  ],
+  "user_only": ["Pagar", "Confirmar", "Solicitar"],
+  "procedures": [
+    {
+      "id": "cita-previa",
+      "title": "Cita previa en Tráfico",
+      "summary": "Pedir cita en una Jefatura de Tráfico para trámites de permisos, vehículos o exámenes.",
+      "keywords": ["cita dgt", "cita tráfico", "cita jefatura", "cita previa dgt", "renovar carnet cita"],
+      "entry_url": "https://sede.dgt.gob.es/es/otros-tramites/cita-previa/",
+      "login": ["sin_identificacion", "clave"],
+      "you_need": ["DNI o NIE", "Saber qué trámite se va a hacer en la Jefatura"],
+      "steps": [
+        {
+          "title": "Página de cita previa",
+          "url": "https://sede.dgt.gob.es/es/otros-tramites/cita-previa/",
+          "guidance": "Lee la página y localiza el acceso para pedir cita. Explica que primero se elige la oficina y el tipo de trámite."
+        },
+        {
+          "title": "Oficina, trámite y hora",
+          "guidance": "Señala cada selector en orden. Elegir es un campo: lo hace la persona. Si no hay huecos, sugiere otra Jefatura cercana.",
+          "person_does": "Elige oficina, trámite, día y hora, rellena sus datos y confirma.",
+          "user_only": ["Confirmar cita", "Aceptar"]
+        }
+      ]
+    },
+    {
+      "id": "consulta-puntos",
+      "title": "Consultar los puntos del carné",
+      "summary": "Ver el saldo de puntos del permiso de conducir.",
+      "keywords": ["puntos", "puntos carnet", "puntos dgt", "saldo de puntos", "permiso por puntos", "cuántos puntos tengo"],
+      "entry_url": "https://sede.dgt.gob.es/es/permisos-de-conducir/permiso-por-puntos/consulta-de-puntos/",
+      "login": ["clave", "certificado", "dnie"],
+      "steps": [
+        {
+          "title": "Página de consulta",
+          "url": "https://sede.dgt.gob.es/es/permisos-de-conducir/permiso-por-puntos/consulta-de-puntos/",
+          "guidance": "Lee la página y busca el acceso a la consulta. Explica qué métodos de identificación ofrece."
+        },
+        {
+          "title": "Identificarse",
+          "guidance": "Señala el acceso elegido. No escribas nada.",
+          "person_does": "Se identifica con Cl@ve, certificado o DNIe y ve su saldo.",
+          "user_only": ["Acceder"]
+        }
+      ],
+      "notes": ["También puede consultarse en la app oficial miDGT; menciónalo solo si la persona lo pregunta."]
+    },
+    {
+      "id": "pago-multas",
+      "title": "Pagar una multa de tráfico",
+      "summary": "Pagar una sanción de la DGT con los datos del boletín de denuncia o de la notificación.",
+      "keywords": ["multa", "pagar multa", "multa dgt", "sanción tráfico", "boletín de denuncia"],
+      "entry_url": "https://sede.dgt.gob.es/es/multas/pago-de-multas/",
+      "login": ["sin_identificacion", "clave", "certificado"],
+      "you_need": ["La notificación o el boletín de denuncia", "Una tarjeta bancaria"],
+      "steps": [
+        {
+          "title": "Página de pago",
+          "url": "https://sede.dgt.gob.es/es/multas/pago-de-multas/",
+          "guidance": "Lee la página y explica las formas de pago que aparezcan y la reducción por pronto pago si la página la menciona. Abre el acceso al pago."
+        },
+        {
+          "title": "Datos de la multa y pago",
+          "guidance": "Señala dónde va cada dato del boletín. Nunca pulses pagar. Antes de que la persona pague, sugiere que compruebe el importe.",
+          "person_does": "Escribe los datos de la multa, revisa el importe, introduce la tarjeta y paga.",
+          "user_only": ["Pagar", "Continuar con el pago"]
+        }
+      ]
+    },
+    {
+      "id": "informe-conductor",
+      "title": "Informe de conductor",
+      "summary": "Obtener un informe con los datos del permiso de conducir y su historial.",
+      "keywords": ["informe conductor", "historial conductor", "informe permiso de conducir", "antecedentes tráfico"],
+      "entry_url": "https://sede.dgt.gob.es/es/permisos-de-conducir/informe-de-conductor/",
+      "login": ["clave", "certificado", "dnie"],
+      "steps": [
+        {
+          "title": "Página del informe",
+          "url": "https://sede.dgt.gob.es/es/permisos-de-conducir/informe-de-conductor/",
+          "guidance": "Lee la página, explica qué incluye el informe y si tiene tasa, y busca el acceso para pedirlo."
+        },
+        {
+          "title": "Identificarse y pedirlo",
+          "guidance": "Señala el acceso y los pasos siguientes.",
+          "person_does": "Se identifica, paga la tasa si la hay y descarga el informe.",
+          "user_only": ["Solicitar", "Pagar", "Descargar"]
+        }
+      ]
+    }
+  ],
+  "checked": "2026-11-21"
+}

@@ -1,0 +1,173 @@
+{
+  "id": "aeat",
+  "name": "Agencia Tributaria (Sede electrónica)",
+  "authority": "Agencia Estatal de Administración Tributaria",
+  "level": "estatal",
+  "status": "draft",
+  "domains": ["agenciatributaria.gob.es"],
+  "home": "https://sede.agenciatributaria.gob.es/Sede/inicio.html",
+  "notes": [
+    "La sede reparte los servicios entre sede.agenciatributaria.gob.es (páginas informativas) y www1/www2.agenciatributaria.gob.es (aplicaciones). Todos son oficiales.",
+    "Para identificarse la sede suele ofrecer Cl@ve, certificado o DNIe y, en Renta, número de referencia. La persona elige el método y escribe sus datos; el asistente solo señala.",
+    "Algunas aplicaciones abren una ventana nueva o un aviso de cookies. El aviso de cookies lo acepta o rechaza la persona.",
+    "Mapa en borrador: las direcciones respondieron el 2026-11-21, pero nadie ha recorrido los trámites con sesión iniciada. Si la página no coincide con lo que dice este mapa, fíate de la página y díselo a la persona."
+  ],
+  "user_only": ["Presentar declaración", "Firmar y enviar", "Conforme", "Pagar", "Aplazar", "Confirmar cita"],
+  "procedures": [
+    {
+      "id": "renta",
+      "title": "Declaración de la Renta (borrador y Renta WEB)",
+      "summary": "Consultar los datos fiscales, revisar el borrador y presentar la declaración del IRPF en Renta WEB.",
+      "keywords": ["renta", "declaración de la renta", "irpf", "borrador", "renta web", "hacienda", "devolución"],
+      "entry_url": "https://sede.agenciatributaria.gob.es/Sede/Renta.html",
+      "login": ["clave", "certificado", "dnie", "referencia"],
+      "you_need": ["DNI o NIE", "Cl@ve, certificado, DNIe o número de referencia", "IBAN de la cuenta para la devolución o el cargo"],
+      "steps": [
+        {
+          "title": "Página de Renta",
+          "url": "https://sede.agenciatributaria.gob.es/Sede/Renta.html",
+          "guidance": "Abre la página de Renta y busca el acceso al servicio de tramitación de borrador / declaración (Renta WEB). Suele estar en un bloque destacado de la campaña en curso. Fuera de campaña puede que solo haya información."
+        },
+        {
+          "title": "Identificarse",
+          "url": "https://www1.agenciatributaria.gob.es/wlpl/DASR-CORE/AccesoDR2025RVlt",
+          "guidance": "La aplicación pide elegir método de identificación. Explica las opciones en una frase cada una y señala la que la persona diga. No escribas nada: ni el NIF ni el número de referencia.",
+          "person_does": "Elige el método, escribe su DNI/NIE y, según el método, el número de referencia o completa Cl@ve.",
+          "user_only": ["Confirmar", "Acceder"]
+        },
+        {
+          "title": "Revisar en Renta WEB",
+          "guidance": "Dentro de Renta WEB casi todo son formularios. Puedes abrir apartados y explicar qué contiene cada uno, y señalar las casillas que la persona quiera revisar. Si la persona tiene dudas fiscales, explícale en general y recomiéndale el teléfono o la cita de la Agencia para su caso concreto.",
+          "person_does": "Revisa los datos, corrige lo que haga falta y decide si presenta."
+        },
+        {
+          "title": "Presentar",
+          "guidance": "Cuando la persona diga que ha revisado, señala el botón de presentar y explica que después verá un justificante con el código seguro de verificación que conviene guardar.",
+          "person_does": "Pulsa «Presentar declaración», confirma y guarda el justificante.",
+          "user_only": ["Presentar declaración", "Firmar y enviar"]
+        }
+      ]
+    },
+    {
+      "id": "numero-referencia",
+      "title": "Obtener el número de referencia de Renta",
+      "summary": "Conseguir el número de referencia que permite entrar en Renta WEB sin Cl@ve ni certificado.",
+      "keywords": ["número de referencia", "referencia renta", "rentaweb referencia", "casilla 505"],
+      "entry_url": "https://www1.agenciatributaria.gob.es/wlpl/DABJ-REN0/ObtenerReferenciaServlet",
+      "login": ["sin_identificacion"],
+      "you_need": [
+        "DNI o NIE",
+        "Fecha de validez o de expedición del DNI (o número de soporte del NIE)",
+        "Un dato de contraste que la página pide (normalmente el importe de una casilla de la renta del año anterior o los últimos dígitos del IBAN); comprueba en la página qué pide este año"
+      ],
+      "steps": [
+        {
+          "title": "Formulario de referencia",
+          "url": "https://www1.agenciatributaria.gob.es/wlpl/DABJ-REN0/ObtenerReferenciaServlet",
+          "guidance": "Lee la página y explica qué datos pide. Señala cada campo en orden con una instrucción corta. No pidas ni repitas los datos en el chat.",
+          "person_does": "Rellena DNI/NIE, la fecha y el dato de contraste, y pulsa el botón para obtener la referencia.",
+          "user_only": ["Obtener referencia", "Enviar"]
+        }
+      ],
+      "notes": ["El número de referencia es personal: dile a la persona que no lo comparta y que no hace falta escribirlo en el chat."]
+    },
+    {
+      "id": "certificados",
+      "title": "Certificados tributarios",
+      "summary": "Pedir certificados de la Agencia Tributaria: de estar al corriente, de IRPF, de situación censal y otros.",
+      "keywords": ["certificado", "certificado hacienda", "estar al corriente", "certificado irpf", "certificado de renta", "situación censal"],
+      "entry_url": "https://sede.agenciatributaria.gob.es/Sede/certificaciones.html",
+      "login": ["clave", "certificado", "dnie"],
+      "steps": [
+        {
+          "title": "Elegir el certificado",
+          "url": "https://sede.agenciatributaria.gob.es/Sede/certificaciones.html",
+          "guidance": "Lee la lista de certificados y pregúntale a la persona cuál necesita si no lo ha dicho (ask_user con las opciones que veas). Abre el enlace del certificado elegido y luego el de «Solicitar» o «Trámites» dentro de su ficha."
+        },
+        {
+          "title": "Identificarse y pedirlo",
+          "guidance": "La aplicación pide identificarse y, a veces, elegir ejercicio o motivo. Señala cada campo y explica.",
+          "person_does": "Se identifica, elige las opciones y pulsa el botón para firmar y enviar la solicitud.",
+          "user_only": ["Firmar y enviar", "Conforme"]
+        },
+        {
+          "title": "Descargar",
+          "guidance": "Si el certificado se genera al momento, señala el botón de descarga. Si queda en trámite, explica que lo recibirá en notificaciones o en la propia sede.",
+          "person_does": "Descarga y guarda el certificado."
+        }
+      ]
+    },
+    {
+      "id": "cita-previa",
+      "title": "Cita previa en la Agencia Tributaria",
+      "summary": "Pedir, consultar o anular cita en una oficina de la Agencia Tributaria o una cita telefónica.",
+      "keywords": ["cita hacienda", "cita previa", "cita agencia tributaria", "cita renta", "cita oficina hacienda"],
+      "entry_url": "https://sede.agenciatributaria.gob.es/Sede/otros-servicios/cita-previa.html",
+      "login": ["sin_identificacion", "clave", "certificado"],
+      "you_need": ["DNI o NIE", "Nombre y primer apellido tal como constan en Hacienda"],
+      "steps": [
+        {
+          "title": "Página de cita previa",
+          "url": "https://sede.agenciatributaria.gob.es/Sede/otros-servicios/cita-previa.html",
+          "guidance": "Explica que hay cita para particulares y para otros casos. Para particulares, sigue el enlace de cita sin certificado o con Cl@ve según prefiera la persona."
+        },
+        {
+          "title": "Identificación de particulares",
+          "url": "https://www2.agenciatributaria.gob.es/wlpl/TOCP-MUTE/internet/identificacion",
+          "guidance": "Señala el campo del NIF y luego el del nombre/apellido. No los escribas.",
+          "person_does": "Escribe su NIF y nombre y pulsa para continuar.",
+          "user_only": ["Validar DNI", "Continuar"]
+        },
+        {
+          "title": "Elegir servicio, oficina y hora",
+          "guidance": "La aplicación muestra servicios, oficinas y huecos. Explica cada pantalla. Elegir es un campo: lo hace la persona. Si no hay huecos, sugiere probar otra oficina o la cita telefónica.",
+          "person_does": "Elige servicio, oficina, día y hora, y confirma la cita.",
+          "user_only": ["Confirmar cita"]
+        }
+      ]
+    },
+    {
+      "id": "notificaciones",
+      "title": "Consultar notificaciones de la Agencia Tributaria",
+      "summary": "Ver y abrir las notificaciones electrónicas que ha enviado la Agencia Tributaria.",
+      "keywords": ["notificaciones", "notificación hacienda", "carta hacienda", "requerimiento", "dehu"],
+      "entry_url": "https://sede.agenciatributaria.gob.es/Sede/procedimientoini/ZN01.shtml",
+      "login": ["clave", "certificado", "dnie"],
+      "steps": [
+        {
+          "title": "Ficha del procedimiento",
+          "url": "https://sede.agenciatributaria.gob.es/Sede/procedimientoini/ZN01.shtml",
+          "guidance": "Abre la ficha y busca el enlace de consulta de notificaciones (normalmente en «Trámites»)."
+        },
+        {
+          "title": "Abrir una notificación",
+          "guidance": "Explica que abrir una notificación cuenta como recibirla y que desde ese momento corren los plazos. Señala la notificación y deja que la persona decida.",
+          "person_does": "Se identifica y abre la notificación si quiere darla por recibida.",
+          "user_only": ["Acceder a la notificación", "Firmar"]
+        }
+      ]
+    },
+    {
+      "id": "pagar-deudas",
+      "title": "Pagar, aplazar o consultar deudas",
+      "summary": "Consultar deudas pendientes con Hacienda, pagarlas o pedir un aplazamiento o fraccionamiento.",
+      "keywords": ["deuda hacienda", "pagar deuda", "aplazar", "fraccionar", "apremio", "embargo"],
+      "entry_url": "https://sede.agenciatributaria.gob.es/Sede/deudas-apremios-embargos-subastas/pagar-aplazar-consultar.html",
+      "login": ["clave", "certificado", "dnie"],
+      "steps": [
+        {
+          "title": "Elegir qué hacer",
+          "url": "https://sede.agenciatributaria.gob.es/Sede/deudas-apremios-embargos-subastas/pagar-aplazar-consultar.html",
+          "guidance": "La página separa consultar, pagar y aplazar. Pregunta qué quiere la persona y abre el enlace correspondiente."
+        },
+        {
+          "title": "Pagar o pedir el aplazamiento",
+          "guidance": "Señala los campos y botones y explica qué pasará. Nunca pulses pagar ni aplazar.",
+          "person_does": "Rellena los datos, revisa el importe y pulsa pagar o solicitar el aplazamiento.",
+          "user_only": ["Pagar", "Aplazar", "Solicitar aplazamiento"]
+        }
+      ]
+    }
+  ],
+  "checked": "2026-11-21"
+}
