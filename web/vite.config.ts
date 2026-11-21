@@ -26,7 +26,7 @@ export default defineConfig(({ mode }) => {
       react(),
       tailwindcss(),
       chatApi(env, path.resolve(import.meta.dirname, '../plugins')),
-      voiceSession(localVoiceKey ?? env.ELEVENLABS_API_KEY, env.ELEVENLABS_VOICE_ID || 'brian'),
+      voiceSession(localVoiceKey ?? env.ELEVENLABS_API_KEY, env.ELEVENLABS_VOICE_ID || '7ilYbYb99yBZGMUUKSaf', env.ELEVENLABS_TTS_MODEL || 'eleven_v4'),
     ],
     resolve: { alias: { '@': path.resolve(import.meta.dirname, './src') } },
   }

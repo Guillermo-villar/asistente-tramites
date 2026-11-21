@@ -262,7 +262,6 @@ export function App() {
   const [showSettings, setShowSettings] = useState(false)
   const [items, setItems] = useState<Item[]>([])
   const [draft, setDraft] = useState('')
-  const voice = useVoiceSession()
   const [running, setRunning] = useState(false)
   const [awaitingDone, setAwaitingDone] = useState(false)
   const [approved, setApproved] = useState<string[]>([])
@@ -425,6 +424,24 @@ export function App() {
     [apiKey, usable, running, settings.effort, settings.model, settings.provider],
   )
 
+  const voice = useVoiceSession({
+    busy: running && !items.some(item => item.kind === 'ask' && !item.answer),
+    onText: text => {
+      const question = [...items].reverse().find(item => item.kind === 'ask' && !item.answer)
+      if (question) {
+        patch(question.id, { answer: text })
+        answers.current.get(question.id)?.(text)
+        answers.current.delete(question.id)
+        push({ kind: 'user', id: newId('user'), text })
+        return
+      }
+      void send(text)
+    },
+    replies: items.flatMap(item => item.kind === 'assistant' ? [{ id: item.id, text: item.text }]
+      : item.kind === 'ask' ? [{ id: item.id, text: item.question, ready: true }] : []),
+    onGreeting: text => push({ kind: 'assistant', id: newId('voice-greeting'), text }),
+  })
+
   // A task handed over from the website (src/handoff.ts): when the panel is on the tab the background
   // opened for it, start it as the first message. Checked again whenever session storage changes, for a
   // panel that was already open when the hand-off arrived.
@@ -481,6 +498,7 @@ export function App() {
   }
 
   const clearChat = () => {
+    voice.stop()
     // Stop the running turn and let go of it at once: the new conversation starts now, even if the old
     // turn is still waiting for a page to load. It gets fresh state, so the old turn cannot touch it.
     abort.current?.abort()
@@ -731,6 +749,7 @@ export function App() {
           <VoiceOrb size={52} state={voice.status === 'connecting' ? 'connecting' : 'live'} getLevels={voice.getLevels} />
           <div className="voice-call-text">
             <p role="status">{voice.status === 'connecting' ? 'Conectando la voz…' : 'Voz de IA conectada. Puedes hablar.'}</p>
+            {voice.partial && <p role="status">{voice.partial}</p>}
             {voice.error && <p className="voice-error" role="alert">{VOICE_MESSAGES[voice.error]}</p>}
           </div>
           <button type="button" className="voice-hangup" aria-label="Finalizar conversación de voz" title="Finalizar conversación de voz" onClick={voice.stop}>

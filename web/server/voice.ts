@@ -1,84 +1,82 @@
-import type { IncomingMessage, ServerResponse } from "node:http"
-import type { Plugin } from "vite"
+import type { IncomingMessage, ServerResponse } from 'node:http'
+import type { Plugin } from 'vite'
 
-const voiceInstructions = [
-  'Eres un asistente de IA no oficial que orienta sobre trámites en España. Responde con frases breves y claras y remite a la sede oficial para confirmar requisitos y plazos. No solicites credenciales ni afirmes tener acceso a expedientes, poder reservar citas o presentar solicitudes.',
-  'Responde en el idioma de la última intervención clara, desde el primer turno. Cambia si el usuario cambia claramente de idioma o pide otro, incluso dentro de una llamada. Conserva el idioma anterior ante un nombre, sigla, número o palabra aislada ambigua.',
-  'En castellano usa acento peninsular del centro y norte de España, con distinción entre ese y zeta o ce ante e o i. Habla en català central y galego estándar cuando corresponda. Si entiendes una petición en euskara y no puedes responder con claridad, explica la limitación y ofrece continuar en castellano.',
-].join('\n')
-
-export function voiceSession(apiKey: string | undefined, voiceId: string): Plugin {
+/** Speech only. Reasoning and tools stay in /api/chat and the extension's runTurn. */
+export function voiceSession(apiKey: string | undefined, voiceId: string, ttsModel = 'eleven_v4'): Plugin {
   return {
     name: 'local-voice-session',
     configureServer(server) {
-      server.middlewares.use('/api/voice/session', (request, response) => {
-        void createVoiceSession(request, response, apiKey, voiceId)
-      })
+      for (const route of ['session', 'speak']) {
+        server.middlewares.use(`/api/voice/${route}`, (request, response) => {
+          void handle(request, response, apiKey, voiceId, ttsModel, route === 'speak')
+        })
+      }
     },
   }
 }
 
-async function createVoiceSession(
-  request: IncomingMessage,
-  response: ServerResponse,
-  apiKey: string | undefined,
-  voiceId: string,
-) {
-  const sendJson = (status: number, data: { error: string } | { token: string }) => {
+async function handle(request: IncomingMessage, response: ServerResponse, apiKey: string | undefined, voiceId: string, model: string, speak: boolean) {
+  const json = (status: number, data: unknown) => {
     response.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
     response.end(JSON.stringify(data))
   }
-
-  if (request.method !== 'POST') {
-    response.setHeader('Allow', 'POST')
-    return sendJson(405, { error: 'Usa POST para iniciar una sesión de voz.' })
-  }
   const host = request.headers.host ?? ''
   const origin = request.headers.origin
-  // The browser extension's side panel uses the same voice (src/ui/voice.ts in the repository root).
-  const fromExtension = !!origin && /^chrome-extension:\/\/[a-p]{32}$/.test(origin)
-  if (!/^(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/.test(host) ||
-      (origin !== `http://${host}` && !fromExtension)) {
-    return sendJson(403, { error: 'La sesión de voz solo está disponible desde esta web local.' })
+  const extension = !!origin && /^chrome-extension:\/\/[a-p]{32}$/.test(origin)
+  if (!/^(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/.test(host) || (origin !== `http://${host}` && !extension)) {
+    json(403, { error: 'Origen no permitido.' }); return
   }
-  if (fromExtension) {
-    response.setHeader('Access-Control-Allow-Origin', origin)
+  if (extension) {
+    response.setHeader('Access-Control-Allow-Origin', origin!)
     response.setHeader('Vary', 'Origin')
+    response.setHeader('Access-Control-Allow-Headers', 'Content-Type')
+    response.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
   }
-  if (!apiKey) return sendJson(503, { error: 'Falta ELEVENLABS_API_KEY en el servidor.' })
-
-  const disconnect = new AbortController()
-  response.once('close', () => disconnect.abort())
+  if (request.method === 'OPTIONS') { response.writeHead(204); response.end(); return }
+  if (request.method !== 'POST') { response.setHeader('Allow', 'POST'); json(405, { error: 'Usa POST.' }); return }
+  if (!apiKey) { json(503, { error: 'Falta ELEVENLABS_API_KEY en el servidor.' }); return }
+  let text = ''
+  if (speak) {
+    try {
+      let size = 0
+      const chunks: Buffer[] = []
+      for await (const chunk of request) {
+        const buffer = Buffer.from(chunk)
+        size += buffer.length
+        if (size > 64000) { json(413, { error: 'Texto demasiado largo.' }); return }
+        chunks.push(buffer)
+      }
+      const body = JSON.parse(Buffer.concat(chunks).toString('utf8'))
+      if (typeof body.text !== 'string' || !body.text.trim() || body.text.length > 12000) throw new Error('Invalid text')
+      text = body.text
+    } catch { json(400, { error: 'Texto no válido.' }); return }
+  }
+  const controller = new AbortController()
+  response.once('close', () => controller.abort())
   try {
-    const upstream = await fetch('https://api.elevenlabs.io/v1/convai/realtime/client_secrets', {
-      method: 'POST',
-      headers: { 'xi-api-key': apiKey, 'Content-Type': 'application/json' },
-      signal: AbortSignal.any([disconnect.signal, AbortSignal.timeout(15000)]),
-      body: JSON.stringify({
-        session: {
-          type: 'realtime',
-          model: 'eleven_realtime_v1_max',
-          instructions: voiceInstructions,
-          output_modalities: ['audio'],
-          audio: {
-            input: {
-              format: { type: 'audio/pcm', rate: 24000 },
-              turn_detection: { type: 'semantic_vad', eagerness: 'medium' },
-            },
-            output: { format: { type: 'audio/pcm', rate: 24000 }, voice: voiceId },
-          },
-        },
-      }),
+    const url = speak
+      ? `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}?output_format=mp3_44100_128`
+      : 'https://api.elevenlabs.io/v1/single-use-token/realtime_scribe'
+    const upstream = await fetch(url, {
+      method: 'POST', headers: { 'xi-api-key': apiKey, 'Content-Type': 'application/json' },
+      signal: AbortSignal.any([controller.signal, AbortSignal.timeout(60000)]),
+      ...(speak ? { body: JSON.stringify({ text, model_id: model }) } : {}),
     })
     if (!upstream.ok) {
-      console.error(`ElevenLabs rechazó la sesión de voz (${upstream.status}).`)
+      console.error(`ElevenLabs rechazó ${speak ? 'la lectura' : 'la transcripción'} (${upstream.status}).`)
       await upstream.body?.cancel()
-      return sendJson(502, { error: 'ElevenLabs no pudo iniciar la sesión de voz.' })
+      json(502, { error: 'No se pudo iniciar el servicio de voz.' }); return
     }
-    const result = await upstream.json() as { value?: string }
-    if (!result.value) return sendJson(502, { error: 'ElevenLabs no devolvió un token de voz.' })
-    sendJson(200, { token: result.value })
+    if (speak) {
+      const audio = Buffer.from(await upstream.arrayBuffer())
+      response.writeHead(200, { 'Content-Type': 'audio/mpeg', 'Cache-Control': 'no-store' })
+      response.end(audio)
+    } else {
+      const data = await upstream.json() as { token?: string }
+      if (!data.token) { json(502, { error: 'No se recibió un token de transcripción.' }); return }
+      json(200, { token: data.token })
+    }
   } catch {
-    if (!disconnect.signal.aborted) sendJson(502, { error: 'No se pudo conectar con ElevenLabs.' })
+    if (!controller.signal.aborted) json(502, { error: 'No se pudo conectar con ElevenLabs.' })
   }
 }

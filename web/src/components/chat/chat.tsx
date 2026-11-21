@@ -37,7 +37,16 @@ export type ChatHelpers = UseChatHelpers<UIMessage>;
 export function ChatPanel({ chat, className }: { chat: ChatHelpers; className?: string }) {
   const { messages, sendMessage, status, stop, setMessages } = chat;
   const { t } = useI18n();
-  const voice = useVoiceSession();
+  const voice = useVoiceSession({
+    onText: text => sendMessage({ text }),
+    busy: status === "submitted" || status === "streaming",
+    replies: messages.filter(message => message.role === "assistant").map(message => ({
+      id: message.id, text: message.parts.filter(part => part.type === "text").map(part => part.text).join("\n"),
+    })),
+    onGreeting: text => setMessages(current => [...current, {
+      id: `voice-greeting-${crypto.randomUUID()}`, role: "assistant", parts: [{ type: "text", text }],
+    }]),
+  });
   const voiceActive = voice.status !== "idle";
   const voiceLabel = voiceActive ? t.chat.voice.stop : t.chat.voice.start;
   // The first suggestion is about the extension, so it gets the puzzle icon.
@@ -143,6 +152,7 @@ export function ChatPanel({ chat, className }: { chat: ChatHelpers; className?: 
           </button>
         </div>
       </PromptInputFooter>
+      {voice.partial && <p className="px-4 pb-3 text-sm text-muted-foreground" role="status">{voice.partial}</p>}
       {voice.error && <p className="px-4 pb-3 text-xs text-destructive" role="alert">{t.chat.voice[voice.error]}</p>}
     </PromptInput>
   );

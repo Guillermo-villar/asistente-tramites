@@ -1,11 +1,13 @@
 ---
 name: asistente-tramites-voz
-description: Configura y comprueba la conversación multilingüe automática en la web de Asistente de trámites. Úsala para la detección de idioma por voz, Eleven Realtime y las sesiones WebSocket de este repositorio.
+description: Configura y comprueba la entrada y salida por voz del chat en la web y la extensión de Asistente de trámites.
 ---
 
 # Voz de Asistente de trámites
 
-- `web/server/voice.ts` obtiene una credencial de sesión temporal de ElevenLabs. Configura `ELEVENLABS_API_KEY` y, si la cuenta dispone de una voz adecuada, `ELEVENLABS_VOICE_ID` en `web/.env` o en variables del servidor. El middleware se registra en `web/vite.config.ts`.
-- `use-voice-session.ts` conecta el navegador directamente a ElevenLabs por WebSocket y libera el micrófono al colgar o salir del chat. El audio usa PCM de 16 bits a 24 kHz en ambos sentidos. El `AudioWorklet` captura el audio sin reproducir el micrófono en los altavoces.
-- Eleven Realtime v1 Max sigue el idioma de la última intervención clara. La configuración prioriza castellano peninsular, galego estándar y català central. El euskara queda fuera de la cobertura documentada. Consulta [los modelos de ElevenLabs](https://elevenlabs.io/docs/overview/models) y [su protocolo Realtime](https://elevenlabs.io/docs/eleven-agents/guides/openai-realtime-compatibility) para cambios de modelo o transporte.
-- En una prueba de navegador, habla primero en uno de los idiomas y pasa a otro en la misma llamada. Comprueba el idioma de las respuestas, la continuidad de la sesión y que colgar libera la pista de entrada. Puedes usar audio sintético como entrada. Para evaluar el acento, escucha una muestra por idioma.
+- La voz es una interfaz del chat. La transcripción se envía por `sendMessage` en la web y `send`/`runTurn` en la extensión. No uses un agente conversacional independiente ni dupliques la lógica o las herramientas del chat.
+- `src/voice/use-speech.ts` comparte captura, transcripción, cola de turnos y lectura entre las dos interfaces. Scribe v3 Live transcribe PCM16 a 24 kHz con detección automática de idioma y VAD. Las respuestas finales del chat se leen con Eleven v4. Las preguntas de las herramientas pueden leerse mientras el agente espera respuesta.
+- `web/server/voice.ts` emite un token temporal para Scribe y convierte texto del chat en audio. Configura `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID` (voz castellana peninsular) y opcionalmente `ELEVENLABS_TTS_MODEL` en variables del servidor. Mantén las claves fuera del cliente y Git.
+- Colgar detiene captura y reproducción y descarta entradas pendientes, conservando el historial del chat. «Nueva» detiene la voz antes de limpiar el historial. No se leen mensajes de antes de abrir el micrófono.
+- Comprueba con audio de prueba que la transcripción dispara el envío normal del chat una sola vez, que el texto enviado a síntesis procede de esa respuesta y que no se pierde el contexto al alternar voz y teclado. Verifica los idiomas, la interrupción de reproducción y la liberación del micrófono.
+- Referencias: [Scribe Realtime](https://elevenlabs.io/docs/api-reference/speech-to-text/v-1-speech-to-text-realtime), [síntesis de voz](https://elevenlabs.io/docs/api-reference/text-to-speech/convert).
