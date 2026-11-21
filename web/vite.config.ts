@@ -1,4 +1,6 @@
 import path from 'node:path'
+import { existsSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { defineConfig, loadEnv } from 'vite'
@@ -7,6 +9,10 @@ import { voiceSession } from './server/voice.ts'
 
 export default defineConfig(({ mode }) => {
   const env = { ...loadEnv(mode, import.meta.dirname, ''), ...process.env }
+  const localVoiceConfig = path.resolve(import.meta.dirname, 'server/.env.elevenlabs.local.cjs')
+  const localVoiceKey = existsSync(localVoiceConfig)
+    ? createRequire(import.meta.url)(localVoiceConfig) as string
+    : undefined
   return {
     // 127.0.0.1 only: /api/extension spends the OpenAI key in web/.env.local, so it must not be reachable
     // from the network. The extension calls it at this exact address (src/agent/localClient.ts).
@@ -20,7 +26,7 @@ export default defineConfig(({ mode }) => {
       react(),
       tailwindcss(),
       chatApi(env, path.resolve(import.meta.dirname, '../plugins')),
-      voiceSession(env.ELEVENLABS_API_KEY, env.ELEVENLABS_VOICE_ID || 'brian'),
+      voiceSession(localVoiceKey ?? env.ELEVENLABS_API_KEY, env.ELEVENLABS_VOICE_ID || 'brian'),
     ],
     resolve: { alias: { '@': path.resolve(import.meta.dirname, './src') } },
   }
