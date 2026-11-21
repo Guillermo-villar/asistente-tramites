@@ -34,9 +34,16 @@ async function createVoiceSession(
     return sendJson(405, { error: 'Usa POST para iniciar una sesión de voz.' })
   }
   const host = request.headers.host ?? ''
+  const origin = request.headers.origin
+  // The browser extension's side panel uses the same voice (src/ui/voice.ts in the repository root).
+  const fromExtension = !!origin && /^chrome-extension:\/\/[a-p]{32}$/.test(origin)
   if (!/^(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/.test(host) ||
-      request.headers.origin !== `http://${host}`) {
+      (origin !== `http://${host}` && !fromExtension)) {
     return sendJson(403, { error: 'La sesión de voz solo está disponible desde esta web local.' })
+  }
+  if (fromExtension) {
+    response.setHeader('Access-Control-Allow-Origin', origin)
+    response.setHeader('Vary', 'Origin')
   }
   if (!apiKey) return sendJson(503, { error: 'Falta ELEVENLABS_API_KEY en el servidor.' })
 

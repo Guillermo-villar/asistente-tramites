@@ -103,6 +103,8 @@ function safariManifest(manifest) {
 await rm(outdir, { recursive: true, force: true })
 await mkdir(`${outdir}/icons`, { recursive: true })
 await cp('public', outdir, { recursive: true })
+// The website's microphone capture worklet, shared with the side panel's voice (src/ui/voice.ts).
+await cp('web/src/components/chat/voice-capture.js', `${outdir}/voice-capture.js`)
 const built = await manifest()
 await writeFile(`${outdir}/manifest.json`, JSON.stringify(safari ? safariManifest(built) : built, null, 2) + '\n')
 for (const size of [16, 32, 48, 128]) await writeFile(`${outdir}/icons/icon${size}.png`, await icon(size))

@@ -110,3 +110,17 @@ export function IconStop({ size = 16 }: IconProps) {
 export function IconLock({ size = 12 }: IconProps) {
   return <IconBase size={size}><rect x="5" y="10" width="14" height="11" rx="2" /><path d="M8 10V6a4 4 0 0 1 8 0v4" /></IconBase>
 }
+
+export function IconMic({ size = 16 }: IconProps) {
+  return <IconBase size={size}><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0" /><line x1="12" y1="18" x2="12" y2="21" /></IconBase>
+}
+
+export function IconPhoneOff({ size = 16 }: IconProps) {
+  return (
+    <IconBase size={size}>
+      <path d="M10.7 13.3a13 13 0 0 1-2-2.6l1.6-1.6a1.5 1.5 0 0 0 .3-1.7L9.4 4.6A1.5 1.5 0 0 0 7.6 3.8L4.9 4.6A1.5 1.5 0 0 0 3.8 6.2a17 17 0 0 0 4.9 9.1" />
+      <path d="M12.4 15.2a17 17 0 0 0 5.4 3 1.5 1.5 0 0 0 1.6-.6l.8-2.7a1.5 1.5 0 0 0-.8-1.8l-2.8-1.2a1.5 1.5 0 0 0-1.7.3l-.7.7" />
+      <line x1="3" y1="3" x2="21" y2="21" />
+    </IconBase>
+  )
+}

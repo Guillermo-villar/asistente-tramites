@@ -15,7 +15,7 @@ import { pluginForUrl } from '../plugins/registry'
 import { hostOf, trustOf } from '../trust'
 import { Activity, LiveStatus } from './Activity'
 import { BrandLockup, BrandMark } from './Brand'
-import { IconCheck, IconClose, IconGlobe, IconSliders, IconSend, IconStop, IconLock } from './Icons'
+import { IconCheck, IconClose, IconGlobe, IconSliders, IconSend, IconStop, IconLock, IconMic, IconPhoneOff } from './Icons'
 import { labelFor, toRows } from './activityRows'
 import { newId } from './conversation'
 import type { Item } from './conversation'
@@ -24,6 +24,8 @@ import { renderMarkdown } from './markdown'
 import { DEFAULTS, EFFORTS, MODELS, PROVIDERS, THEMES, loadApiKey, loadSettings, saveApiKey, saveSettings } from './settings'
 import type { Settings } from './settings'
 import { dropSiteAccess, loadApprovedHosts, requestSiteAccess, saveApprovedHosts } from './sites'
+import { VOICE_MESSAGES, useVoiceSession } from './voice'
+import { VoiceOrb } from './VoiceOrb'
 
 const STARTERS: { label: string; hint: string }[] = [
   { label: 'Quiero renovar el DNI', hint: 'Cita previa · Policía Nacional' },
@@ -260,6 +262,7 @@ export function App() {
   const [showSettings, setShowSettings] = useState(false)
   const [items, setItems] = useState<Item[]>([])
   const [draft, setDraft] = useState('')
+  const voice = useVoiceSession()
   const [running, setRunning] = useState(false)
   const [awaitingDone, setAwaitingDone] = useState(false)
   const [approved, setApproved] = useState<string[]>([])
@@ -723,6 +726,18 @@ export function App() {
         <div ref={logEnd} />
       </main>
 
+      {voice.status !== 'idle' ? (
+        <div className="composer voice-call">
+          <VoiceOrb size={52} state={voice.status === 'connecting' ? 'connecting' : 'live'} getLevels={voice.getLevels} />
+          <div className="voice-call-text">
+            <p role="status">{voice.status === 'connecting' ? 'Conectando la voz…' : 'Voz de IA conectada. Puedes hablar.'}</p>
+            {voice.error && <p className="voice-error" role="alert">{VOICE_MESSAGES[voice.error]}</p>}
+          </div>
+          <button type="button" className="voice-hangup" aria-label="Finalizar conversación de voz" title="Finalizar conversación de voz" onClick={voice.stop}>
+            <IconPhoneOff />
+          </button>
+        </div>
+      ) : (
       <form
         className="composer"
         onSubmit={(event) => {
@@ -742,6 +757,11 @@ export function App() {
         />
         <div className="composer-footer">
           <span className="composer-privacy"><IconLock /> Nada se envía sin tu confirmación</span>
+          <div className="composer-actions">
+          <button type="button" className="voice-button" aria-label="Hablar con el asistente" title="Hablar con el asistente" onClick={() => void voice.start()}>
+            <VoiceOrb size={32} state="idle" />
+            <IconMic size={14} />
+          </button>
           {running ? (
             <button type="button" className="primary send-button" aria-label="Detener" title="Detener" onClick={() => abort.current?.abort()}>
               <IconStop />
@@ -751,8 +771,11 @@ export function App() {
               <IconSend />
             </button>
           )}
+          </div>
         </div>
+        {voice.error && <p className="voice-error" role="alert">{VOICE_MESSAGES[voice.error]}</p>}
       </form>
+      )}
     </div>
   )
 }
