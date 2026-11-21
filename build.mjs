@@ -81,8 +81,9 @@ async function manifest() {
     side_panel: { default_path: 'sidepanel.html' },
     background: { service_worker: 'background.js', type: 'module' },
     permissions: ['sidePanel', 'storage', 'scripting', 'tabs'],
-    // The local server in web/ (npm run dev) for the OpenAI provider (src/agent/localClient.ts).
-    host_permissions: [...hosts, 'https://api.anthropic.com/*', 'http://127.0.0.1:5173/*'],
+    // The local server in web/ (npm run dev) for the OpenAI provider (src/agent/localClient.ts), and the
+    // website's own origins, so the background can put the bridge into its already-open tabs on install.
+    host_permissions: [...new Set([...hosts, 'https://api.anthropic.com/*', 'http://127.0.0.1:5173/*', ...(await webOrigins()).map((o) => `${o}/*`)])],
     optional_host_permissions: ['https://*/*'],
     content_scripts: [{ matches: (await webOrigins()).map((o) => `${o}/*`), js: ['bridge.js'], run_at: 'document_start' }],
   }

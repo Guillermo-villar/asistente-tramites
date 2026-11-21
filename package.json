@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "map": "tsx scripts/map-site.ts",
-    "check-plugins": "tsx scripts/check-plugins.ts"
+    "check-plugins": "tsx scripts/check-plugins.ts",
+    "pack:web": "node build.mjs && rm -f web/public/asistente-tramites.zip && cd dist && zip -qr ../web/public/asistente-tramites.zip ."
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.12.0",

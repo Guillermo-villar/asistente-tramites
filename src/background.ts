@@ -43,6 +43,18 @@ if (hasSidePanel) {
   })
 }
 
+// The website notices the extension through the bridge script. Chrome only injects declared content scripts
+// into pages loaded after install, so put it into the website's tabs that are already open: the page then
+// switches to «Instalada» on its own, right after the person installs.
+chrome.runtime.onInstalled.addListener(() => void injectBridge())
+
+async function injectBridge(): Promise<void> {
+  const tabs = await chrome.tabs.query({ url: WEB_ORIGINS.map((o) => `${o}/*`) }).catch(() => [])
+  for (const tab of tabs) {
+    if (tab.id !== undefined) await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['bridge.js'] }).catch(() => undefined)
+  }
+}
+
 // Hand-off from the website (see src/handoff.ts): open the official site in a new tab, open the panel,
 // and leave the task for the panel to start on that tab.
 chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) => {
