@@ -51,13 +51,23 @@ export function useExtensionInstalled() {
 
 let seq = 0;
 
+/** What travels to the extension. The extension trims it and blanks personal data (cleanHandoff in src/handoff.ts). */
+export type Handoff = {
+  text: string;
+  url: string;
+  /** The site map procedure, when the web matched one. */
+  procedure?: { plugin: string; id: string };
+  /** What the person wrote in this chat, oldest first, so the extension doesn't ask again. */
+  context?: string[];
+};
+
 /** Hands the trámite to the extension. Call it from a click: Chrome needs that gesture to open the panel. */
-export function startInExtension(text: string, url: string): Promise<StartResult> {
+export function startInExtension(handoff: Handoff): Promise<StartResult> {
   if (!installed) return Promise.resolve({ ok: false, reason: "missing" });
   const id = `h${Date.now().toString(36)}${(seq++).toString(36)}`;
   return new Promise((resolve) => {
     waiting.set(id, resolve);
-    window.postMessage({ source: FROM_WEB, type: "start", id, text, url }, window.location.origin);
+    window.postMessage({ source: FROM_WEB, type: "start", id, ...handoff }, window.location.origin);
     setTimeout(() => {
       if (waiting.delete(id)) resolve({ ok: false, reason: "timeout" });
     }, 8000);

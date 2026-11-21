@@ -101,6 +101,8 @@ export type ExtensionPlan = {
   necesitas: string[];
   pasos: { titulo: string; extension: string; tu: string | null }[];
   frase: string;
+  /** Which site map procedure this is, so the extension can open it directly. */
+  mapa: { plugin: string; id: string };
 };
 
 /** The maps are in Spanish; the texts the web adds around them follow `lang`. */
@@ -122,6 +124,7 @@ export function planFor(site: SiteMap, p: MapProcedure, lang: Lang = "es"): Exte
       tu: s.person_does ?? null,
     })),
     frase: p.title,
+    mapa: { plugin: site.id, id: p.id },
   };
 }
 

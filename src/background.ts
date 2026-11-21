@@ -1,4 +1,4 @@
-import { WEB_ORIGINS, pendingKey } from './handoff'
+import { WEB_ORIGINS, cleanHandoff, pendingKey } from './handoff'
 import type { HandoffRequest, HandoffResponse, PendingTask } from './handoff'
 import { trustOf } from './trust'
 
@@ -58,11 +58,15 @@ async function injectBridge(): Promise<void> {
 // Hand-off from the website (see src/handoff.ts): open the official site in a new tab, open the panel,
 // and leave the task for the panel to start on that tab.
 chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) => {
-  const request = message as HandoffRequest | null
-  if (request?.type !== 'handoff') return false
+  if ((message as { type?: unknown } | null)?.type !== 'handoff') return false
   const origin = sender.origin ?? (sender.url ? new URL(sender.url).origin : undefined)
   if (sender.id !== chrome.runtime.id || !origin || !WEB_ORIGINS.includes(origin)) {
     sendResponse({ ok: false, reason: 'origin' } satisfies HandoffResponse)
+    return false
+  }
+  const request = cleanHandoff(message)
+  if (!request) {
+    sendResponse({ ok: false, reason: 'url' } satisfies HandoffResponse)
     return false
   }
   // Open the panel first, synchronously in the listener, while Chrome may still count the person's click
@@ -89,7 +93,7 @@ async function startHandoff(request: HandoffRequest, from: chrome.tabs.Tab | und
     .create({ url: url.href, active: true, windowId: from?.windowId, index: from?.index !== undefined ? from.index + 1 : undefined, openerTabId: from?.id })
     .catch(() => undefined)
   if (tab?.id === undefined) return { ok: false, reason: 'tab' }
-  const task: PendingTask = { text: request.text, url: url.href, at: Date.now() }
+  const task: PendingTask = { text: request.text, url: url.href, procedure: request.procedure, context: request.context, at: Date.now() }
   await chrome.storage.session.set({ [pendingKey(tab.id)]: task })
 
   if (!hasSidePanel) {

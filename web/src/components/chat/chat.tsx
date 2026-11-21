@@ -21,7 +21,7 @@ import { Shimmer } from "@/components/ai-elements/shimmer";
 import { Source, Sources, SourcesContent, SourcesTrigger } from "@/components/ai-elements/sources";
 import type { ToolPart } from "@/components/ai-elements/tool";
 import { LogoMark } from "@/components/brand/logo";
-import { AskContext, ToolResultCard } from "@/components/chat/tool-cards";
+import { AskContext, ToolResultCard, UserWordsContext } from "@/components/chat/tool-cards";
 import { useI18n } from "@/i18n/i18n";
 import { cn } from "@/lib/utils";
 
@@ -40,6 +40,10 @@ export function ChatPanel({ chat, className }: { chat: ChatHelpers; className?: 
     if (text.trim()) sendMessage({ text });
   };
   const empty = messages.length === 0;
+  const userWords = messages
+    .filter((m) => m.role === "user")
+    .map((m) => m.parts.map((p) => (p.type === "text" ? p.text : "")).join(" ").trim())
+    .filter(Boolean);
   const composer = (
     <PromptInput
       className={cn(
@@ -97,44 +101,46 @@ export function ChatPanel({ chat, className }: { chat: ChatHelpers; className?: 
 
   return (
     <AskContext.Provider value={send}>
-      <div
-        className={cn(
-          "flex h-[680px] max-h-[calc(100dvh-6rem)] min-h-[460px] max-w-3xl flex-col overflow-hidden rounded-3xl border bg-card shadow-[0_1px_2px_rgb(0_0_0/0.04),0_24px_60px_-24px_rgb(0_0_0/0.18)]",
-          className
-        )}
-      >
-        <header className="flex items-center gap-2.5 border-b px-4 py-2.5">
-          <LogoMark size={22} />
-          <p className="flex-1 text-sm font-medium">{t.chat.title}</p>
-          <button
-            className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
-            onClick={() => {
-              stop();
-              setMessages([]);
-            }}
-            type="button"
-          >
-            <RotateCcwIcon className="size-3.5" /> {t.chat.reset}
-          </button>
-        </header>
+      <UserWordsContext.Provider value={userWords}>
+        <div
+          className={cn(
+            "flex h-[680px] max-h-[calc(100dvh-6rem)] min-h-[460px] max-w-3xl flex-col overflow-hidden rounded-3xl border bg-card shadow-[0_1px_2px_rgb(0_0_0/0.04),0_24px_60px_-24px_rgb(0_0_0/0.18)]",
+            className
+          )}
+        >
+          <header className="flex items-center gap-2.5 border-b px-4 py-2.5">
+            <LogoMark size={22} />
+            <p className="flex-1 text-sm font-medium">{t.chat.title}</p>
+            <button
+              className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+              onClick={() => {
+                stop();
+                setMessages([]);
+              }}
+              type="button"
+            >
+              <RotateCcwIcon className="size-3.5" /> {t.chat.reset}
+            </button>
+          </header>
 
-        <Conversation className="min-h-0 flex-1">
-          <ConversationContent className="gap-6 px-5 py-6">
-            {messages.map((m, i) => (
-              <ChatMessage key={m.id} message={m} streaming={status === "streaming" && i === messages.length - 1} />
-            ))}
-            {status === "submitted" && (
-              <div className="flex items-center gap-2.5 text-sm text-muted-foreground">
-                <span className="size-1.5 animate-pulse rounded-full bg-brand-red" />
-                <Shimmer>{t.chat.reading}</Shimmer>
-              </div>
-            )}
-          </ConversationContent>
-          <ConversationScrollButton />
-        </Conversation>
+          <Conversation className="min-h-0 flex-1">
+            <ConversationContent className="gap-6 px-5 py-6">
+              {messages.map((m, i) => (
+                <ChatMessage key={m.id} message={m} streaming={status === "streaming" && i === messages.length - 1} />
+              ))}
+              {status === "submitted" && (
+                <div className="flex items-center gap-2.5 text-sm text-muted-foreground">
+                  <span className="size-1.5 animate-pulse rounded-full bg-brand-red" />
+                  <Shimmer>{t.chat.reading}</Shimmer>
+                </div>
+              )}
+            </ConversationContent>
+            <ConversationScrollButton />
+          </Conversation>
 
-        <div className="border-t p-3">{composer}</div>
-      </div>
+          <div className="border-t p-3">{composer}</div>
+        </div>
+      </UserWordsContext.Provider>
     </AskContext.Provider>
   );
 }

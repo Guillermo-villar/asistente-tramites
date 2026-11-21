@@ -4,7 +4,7 @@
 // page that the extension is installed, and passes «Hacerlo con la extensión» requests to the background.
 // It reads nothing from the page and accepts only messages the page posts to itself, tagged FROM_WEB.
 
-import { FROM_EXTENSION, FROM_WEB } from '../handoff'
+import { FROM_EXTENSION, FROM_WEB, cleanHandoff } from '../handoff'
 import type { HandoffRequest, HandoffResponse } from '../handoff'
 
 const post = (data: Record<string, unknown>) => window.postMessage({ source: FROM_EXTENSION, ...data }, window.location.origin)
@@ -20,12 +20,13 @@ if (!scope[FLAG]) {
   scope[FLAG] = true
   window.addEventListener('message', (event: MessageEvent) => {
     if (event.source !== window || event.origin !== window.location.origin || !alive()) return
-    const data = event.data as { source?: unknown; type?: unknown; id?: unknown; text?: unknown; url?: unknown } | null
+    const data = event.data as { source?: unknown; type?: unknown; id?: unknown } | null
     if (!data || data.source !== FROM_WEB) return
     if (data.type === 'ping') return void announce()
-    if (data.type !== 'start' || typeof data.text !== 'string' || typeof data.url !== 'string') return
+    if (data.type !== 'start') return
+    const request = cleanHandoff(data)
+    if (!request) return
     const id = typeof data.id === 'string' ? data.id.slice(0, 64) : ''
-    const request: HandoffRequest = { type: 'handoff', text: data.text.slice(0, 300), url: data.url }
     chrome.runtime
       .sendMessage<HandoffRequest, HandoffResponse>(request)
       .then((response) => post({ type: 'started', id, ...response }))

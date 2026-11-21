@@ -23,6 +23,9 @@ import { withBold } from "@/lib/with-bold";
 /** Lets a card send a follow-up message to the chat. */
 export const AskContext = createContext<(text: string) => void>(() => {});
 
+/** What the person has written in the chat so far, oldest first: it travels with the hand-off. */
+export const UserWordsContext = createContext<string[]>([]);
+
 /** A tool result rendered as UI: the "generative" part of the chat. */
 export function ToolResultCard({ name, output }: { name: string; output: unknown }) {
   switch (name) {
@@ -56,7 +59,17 @@ const host = (url: string) => new URL(url).hostname.replace(/^www\./, "");
  * The bridge to the extension: opens the official site in a new tab with the assistant's panel,
  * already knowing what the person wants to do. Without the extension, it says how to get it.
  */
-function HandoffBox({ text, url, mapped }: { text: string; url: string; mapped: boolean }) {
+function HandoffBox({
+  text,
+  url,
+  procedure,
+}: {
+  text: string;
+  url: string;
+  procedure?: { plugin: string; id: string };
+}) {
+  const mapped = !!procedure;
+  const context = useContext(UserWordsContext);
   const installed = useExtensionInstalled();
   const h = useI18n().t.cards.handoff;
   const [state, setState] = useState<"idle" | "opening" | StartResult>("idle");
@@ -64,7 +77,7 @@ function HandoffBox({ text, url, mapped }: { text: string; url: string; mapped: 
 
   const start = () => {
     setState("opening");
-    void startInExtension(text, url).then(setState);
+    void startInExtension({ text, url, procedure, context }).then(setState);
   };
   const copiar = () =>
     navigator.clipboard?.writeText(text).then(
@@ -190,7 +203,7 @@ function FichaCard({ ficha }: { ficha: FichaCatalogo }) {
           </span>
         </div>
 
-        <HandoffBox mapped={false} text={ficha.titulo} url={ficha.url} />
+        <HandoffBox text={ficha.titulo} url={ficha.url} />
       </div>
     </Shell>
   );
@@ -318,7 +331,7 @@ function PlanCard({ plan }: { plan: ExtensionPlan }) {
           </ol>
         </div>
 
-        <HandoffBox mapped text={plan.frase} url={plan.url} />
+        <HandoffBox procedure={plan.mapa} text={plan.frase} url={plan.url} />
         {plan.borrador && (
           <p className="text-[11px] text-muted-foreground">
             {c.draft}

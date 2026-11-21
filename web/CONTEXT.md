@@ -38,10 +38,11 @@ Card buttons send follow-ups to the chat through `AskContext`.
 
 This web is for **discovery**: what trámite it is, what you need, how you sign in. The **extension** then guides you inside the official site. Every trámite card has a «Hacerlo con la extensión» button that hands off. The protocol is in `src/handoff.ts` at the repo root:
 
-1. The web (`src/lib/extension-bridge.ts`) posts `{source: "asistente-tramites-web", type: "start", id, text, url}` to its own window.
+1. The web (`src/lib/extension-bridge.ts`) posts `{source: "asistente-tramites-web", type: "start", id, text, url, procedure?, context?}` to its own window. `procedure` is the site map procedure (`{plugin, id}`) when the card came from a map. `context` is what the person typed in the web chat, so the extension doesn't ask again.
 2. The extension's **bridge** content script (`src/web/bridge.ts`) only runs on `WEB_ORIGINS`, which is localhost:5173 for now. It forwards the request to the background. On load it also answers `ping` with `ready`, which is how the web knows the extension is installed: the green dot in the header, and the button instead of "Instala la extensión".
 3. The **background** checks that the sender is one of the `WEB_ORIGINS` and that the URL is https on a mapped or public-administration site. It tries `sidePanel.open()` while the click still counts as a user gesture, opens the URL in a new tab next to the web, and stores the task in `chrome.storage.session` under `handoff:<tabId>`. If the panel didn't open, it puts a red "1" badge on the toolbar icon for that tab.
-4. The **panel** (`src/ui/App.tsx`) sees a pending task for its active tab and sends it as the first message. Tasks older than 10 minutes are dropped. The assistant then uses the site map to take you to the trámite.
+   Both the bridge and the background run `cleanHandoff()`. It keeps the last 6 messages, at 400 characters each, and replaces DNI/NIE numbers, phone numbers, emails, IBANs and Seguridad Social numbers with `[dato personal]` before anything is stored or reaches the model.
+4. The **panel** (`src/ui/App.tsx`) sees a pending task for its active tab and sends it as the first message (`handoffMessage()`): what to do, which map to open, and what the person said on the web. Tasks older than 10 minutes are dropped. The assistant then uses the site map to take you to the trámite.
 
 **To ship:** add the production origin of this web to `WEB_ORIGINS` (the manifest's `content_scripts` is generated from it in `build.mjs`).
 
