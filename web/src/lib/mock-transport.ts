@@ -1,5 +1,7 @@
 import type { ChatTransport, UIMessage, UIMessageChunk } from "ai";
-import { buscarEnCatalogo, type FichaCatalogo } from "@/data/tramites";
+import { buscarEnCatalogo, ficha, type FichaCatalogo } from "@/data/tramites";
+import type { Lang } from "@/i18n/langs";
+import { messages } from "@/i18n/messages";
 
 /**
  * A local stand-in for the model. It speaks the AI SDK UI-message stream protocol
@@ -11,6 +13,13 @@ import { buscarEnCatalogo, type FichaCatalogo } from "@/data/tramites";
  * with a server route that returns `streamText(...).toUIMessageStreamResponse()`.
  */
 export class MockTramitesTransport implements ChatTransport<UIMessage> {
+  private lang: Lang = "es";
+
+  /** Language of the next replies. The app keeps it in sync with the header's language picker. */
+  setLang(lang: Lang) {
+    this.lang = lang;
+  }
+
   async sendMessages({
     messages,
     abortSignal,
@@ -21,7 +30,7 @@ export class MockTramitesTransport implements ChatTransport<UIMessage> {
         .filter((p) => p.type === "text")
         .map((p) => p.text)
         .join(" ") ?? "";
-    return stream(responder(text), abortSignal);
+    return stream(responder(text, this.lang), abortSignal);
   }
 
   async reconnectToStream() {
@@ -35,92 +44,66 @@ type Step =
   | { kind: "text"; text: string }
   | { kind: "sources"; items: { url: string; title: string }[] };
 
-function responder(input: string): Step[] {
-  const t = input.toLowerCase();
+// Intent keywords in every supported language (es, ca, eu, gl, en): the user may type in any of them.
+const EXTENSION = /(extensi|plugin|complement|panel lateral|luzapen|hedapen|gehigarri)/;
+const RESERVA = /(reserv|erreserb|\bbook\b)/;
+const ESTADO =
+  /(estado|cómo va|como va|mis trámites|mis tramites|expedient|\bestat\b|com van|els meus tràmits|egoera|nire izapide|espediente|os meus trámites|\bstatus\b|my procedures|my applications)/;
+const CITA = /(\bcita\b|hitzordu|appointment)/;
 
-  if (/(extensi|plugin|complemento|panel lateral)/.test(t)) {
+function responder(input: string, lang: Lang): Step[] {
+  const t = input.toLowerCase();
+  const r = messages[lang].replies;
+
+  if (EXTENSION.test(t)) return [{ kind: "text", text: r.extension }];
+
+  if (RESERVA.test(t)) {
+    const f = buscarEnCatalogo(t, lang) ?? ficha("nie", lang);
     return [
-      {
-        kind: "text",
-        text:
-          "La extensión es un **panel lateral en tu navegador** que se abre junto a la web oficial (Agencia Tributaria, Seguridad Social, DGT, SEPE, tu ayuntamiento…). Funciona así:\n\n" +
-          "1. **Le dices qué quieres hacer**, con tus palabras: *«quiero ver mi borrador de la renta»*.\n" +
-          "2. **Te lleva a la página correcta**: sigue enlaces y abre menús y pestañas por ti, solo dentro de las webs oficiales que conoce.\n" +
-          "3. **Te señala dónde escribir**: rodea cada casilla con un recuadro amarillo y te dice qué poner, por ejemplo *«Tu DNI, con la letra»*.\n" +
-          "4. **Tú escribes, firmas y presentas.** La extensión nunca rellena tus datos, ni elige opciones, ni pulsa botones que envían, firman, pagan o guardan.\n\n" +
-          "Así no te pierdes en la sede, y todo lo que se presenta lo has hecho tú. Estará disponible pronto para Chrome y Safari.",
-      },
+      { kind: "text", text: r.reserva },
+      { kind: "sources", items: [{ url: f.url, title: r.citaSource(f.organismo) }] },
     ];
   }
 
   // Public site: there is no session, so status questions go to Carpeta Ciudadana.
-  if (/(estado|cómo va|como va|mis trámites|mis tramites|expediente)/.test(t)) {
+  if (ESTADO.test(t)) {
     return [
-      {
-        kind: "text",
-        text:
-          "Para ver el estado de **tus** expedientes tienes que identificarte en **Carpeta Ciudadana** con Cl@ve, certificado digital o DNIe: ahí aparecen los trámites abiertos con la Administración General del Estado y sus notificaciones.\n\n" +
-          "Si me dices qué trámite es, te explico en qué fase suele estar y cuánto tarda.",
-      },
-      { kind: "sources", items: [{ url: "https://carpetaciudadana.gob.es/", title: "Carpeta Ciudadana" }] },
+      { kind: "text", text: r.estado },
+      { kind: "sources", items: [{ url: "https://carpetaciudadana.gob.es/", title: r.estadoSource }] },
     ];
   }
 
-  if (/reserv/.test(t)) {
-    const ficha = buscarEnCatalogo(t) ?? buscarEnCatalogo("nie")!;
+  if (CITA.test(t)) {
+    const f = buscarEnCatalogo(t, lang) ?? ficha("nie", lang);
     return [
-      {
-        kind: "text",
-        text:
-          "Perfecto. Te abro la página oficial de cita previa con la oficina y la fecha que has elegido. **La reserva la confirmas tú allí**, con tus datos; yo no envío nada en tu nombre.",
-      },
-      { kind: "sources", items: [{ url: ficha.url, title: `Cita previa · ${ficha.organismo}` }] },
-    ];
-  }
-
-  if (/\bcita\b/.test(t)) {
-    const ficha = buscarEnCatalogo(t) ?? buscarEnCatalogo("nie")!;
-    return [
-      { kind: "reasoning", text: `Busco huecos libres para «${ficha.titulo}» en las oficinas de Madrid.` },
+      { kind: "reasoning", text: r.citaReasoning(f.titulo) },
       {
         kind: "tool",
         name: "buscar_cita",
-        input: { tramite: ficha.id, provincia: "Madrid" },
-        output: { tramite: ficha.titulo, huecos: huecosPara(ficha) },
+        input: { tramite: f.id, provincia: "Madrid" },
+        output: { tramite: f.titulo, huecos: huecosPara(f, lang) },
         ms: 1400,
       },
-      {
-        kind: "text",
-        text: "He encontrado **3 huecos**. Elige uno y te llevo a la página oficial de cita previa; **la confirmación la haces tú**.",
-      },
-      { kind: "sources", items: [{ url: ficha.url, title: `Cita previa · ${ficha.organismo}` }] },
+      { kind: "text", text: r.citaFound },
+      { kind: "sources", items: [{ url: f.url, title: r.citaSource(f.organismo) }] },
     ];
   }
 
-  const ficha = buscarEnCatalogo(t);
-  if (ficha) return tramiteSteps(ficha);
+  const f = buscarEnCatalogo(t, lang);
+  if (f) return tramiteSteps(f, lang);
 
-  return [
-    {
-      kind: "text",
-      text:
-        "Puedo ayudarte a **encontrar el trámite** que necesitas, decirte **qué documentos llevar**, **buscar cita** y explicarte **cada paso**.\n\n" +
-        "Cuéntame qué quieres hacer, por ejemplo: *«Necesito el NIE»*, *«¿Cómo hago la renta?»* o *«Me he quedado en paro»*.",
-    },
-  ];
+  return [{ kind: "text", text: r.fallback }];
 }
 
+const NIE_DIRECCIONES = ["C/ Las Matas, 6", "C/ Fuente Carrantona, 12", "C/ Manuel Luna, 29"];
+
 /** Demo slots (fictional), named after the kind of office that handles the trámite. */
-function huecosPara(ficha: FichaCatalogo) {
+function huecosPara(f: FichaCatalogo, lang: Lang) {
   const oficinas =
-    ficha.id === "nie"
-      ? [
-          { oficina: "Comisaría de Aluche", direccion: "C/ Las Matas, 6" },
-          { oficina: "Comisaría de Moratalaz", direccion: "C/ Fuente Carrantona, 12" },
-          { oficina: "Oficina de Extranjería de Madrid", direccion: "C/ Manuel Luna, 29" },
-        ]
+    f.id === "nie"
+      ? messages[lang].nieOffices.map((oficina, i) => ({ oficina, direccion: NIE_DIRECCIONES[i]! }))
       : ["Centro", "Chamberí", "Arganzuela"].map((zona) => ({
-          oficina: `${ficha.organismo.split(" · ")[0]} · ${zona}`,
+          oficina: `${f.organismo.split(" · ")[0]} · ${zona}`,
           direccion: "Madrid",
         }));
   const slots = [
@@ -131,21 +114,13 @@ function huecosPara(ficha: FichaCatalogo) {
   return oficinas.map((o, i) => ({ ...o, ...slots[i]! }));
 }
 
-function tramiteSteps(ficha: FichaCatalogo): Step[] {
+function tramiteSteps(f: FichaCatalogo, lang: Lang): Step[] {
+  const r = messages[lang].replies;
   return [
-    {
-      kind: "reasoning",
-      text: `La consulta encaja con «${ficha.titulo}» (${ficha.organismo}). Reviso requisitos, coste y canal de presentación.`,
-    },
-    { kind: "tool", name: "buscar_tramite", input: { consulta: ficha.titulo }, output: ficha, ms: 1100 },
-    {
-      kind: "text",
-      text:
-        `**${ficha.titulo}** se gestiona con ${ficha.organismo}. ${ficha.resumen}\n\n` +
-        `Necesitarás ${ficha.requisitos.length} cosas; te las dejo arriba como lista. ` +
-        "Si quieres, **te busco cita** o te explico cada paso; tú revisas y firmas siempre.",
-    },
-    { kind: "sources", items: [{ url: ficha.url, title: `${ficha.organismo} · ficha oficial` }] },
+    { kind: "reasoning", text: r.tramiteReasoning(f.titulo, f.organismo) },
+    { kind: "tool", name: "buscar_tramite", input: { consulta: f.titulo }, output: f, ms: 1100 },
+    { kind: "text", text: r.tramiteText(f) },
+    { kind: "sources", items: [{ url: f.url, title: r.tramiteSource(f.organismo) }] },
   ];
 }
 

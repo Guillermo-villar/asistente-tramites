@@ -1,8 +1,9 @@
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext, useMemo, useState } from "react";
 import { ArrowUpRightIcon, CalendarIcon, CheckIcon, ClockIcon, EuroIcon, MapPinIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { FichaCatalogo } from "@/data/tramites";
+import { useI18n } from "@/i18n/i18n";
 
 /** Lets a card send a follow-up message to the chat (e.g. "búscame cita"). */
 export const AskContext = createContext<(text: string) => void>(() => {});
@@ -19,11 +20,6 @@ export function ToolResultCard({ name, output }: { name: string; output: unknown
   }
 }
 
-export const toolLabels: Record<string, { running: string; done: string }> = {
-  buscar_tramite: { running: "Buscando en el catálogo de trámites…", done: "Catálogo de trámites" },
-  buscar_cita: { running: "Buscando huecos de cita previa…", done: "Cita previa" },
-};
-
 function Shell({ eyebrow, children }: { eyebrow: string; children: React.ReactNode }) {
   return (
     <div className="w-full overflow-hidden rounded-xl border bg-card">
@@ -37,6 +33,7 @@ function Shell({ eyebrow, children }: { eyebrow: string; children: React.ReactNo
 
 function FichaCard({ ficha }: { ficha: FichaCatalogo }) {
   const ask = useContext(AskContext);
+  const c = useI18n().t.cards;
   const [hechos, setHechos] = useState<Set<number>>(new Set());
   const toggle = (i: number) =>
     setHechos((prev) => {
@@ -56,7 +53,7 @@ function FichaCard({ ficha }: { ficha: FichaCatalogo }) {
 
         <div>
           <p className="mb-2 text-xs font-medium text-muted-foreground">
-            Qué necesitas · {hechos.size}/{ficha.requisitos.length}
+            {c.needs(hechos.size, ficha.requisitos.length)}
           </p>
           <ul className="space-y-1">
             {ficha.requisitos.map((r, i) => (
@@ -91,12 +88,12 @@ function FichaCard({ ficha }: { ficha: FichaCatalogo }) {
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <Button onClick={() => ask(`Búscame cita para ${ficha.titulo.toLowerCase()}`)} size="sm">
-            Buscar cita
+          <Button onClick={() => ask(c.askCita(ficha.titulo))} size="sm">
+            {c.bookCta}
           </Button>
           <Button asChild size="sm" variant="outline">
             <a href={ficha.url} rel="noreferrer" target="_blank">
-              Ficha oficial <ArrowUpRightIcon />
+              {c.official} <ArrowUpRightIcon />
             </a>
           </Button>
         </div>
@@ -110,16 +107,22 @@ type CitaOutput = {
   huecos: { oficina: string; direccion: string; fecha: string; hora: string }[];
 };
 
-const diaSemana = new Intl.DateTimeFormat("es-ES", { weekday: "short" });
-const fechaCorta = new Intl.DateTimeFormat("es-ES", { weekday: "long", day: "numeric", month: "long" });
-
 function CitaCard({ tramite, huecos }: CitaOutput) {
   const ask = useContext(AskContext);
+  const { t, locale } = useI18n();
+  const c = t.cards;
+  const [diaSemana, fechaCorta] = useMemo(
+    () => [
+      new Intl.DateTimeFormat(locale, { weekday: "short" }),
+      new Intl.DateTimeFormat(locale, { weekday: "long", day: "numeric", month: "long" }),
+    ],
+    [locale]
+  );
   const [elegido, setElegido] = useState<number | null>(null);
   const h = elegido === null ? null : huecos[elegido];
 
   return (
-    <Shell eyebrow={`Cita previa · ${tramite}`}>
+    <Shell eyebrow={c.citaEyebrow(tramite)}>
       <div className="space-y-2 p-3">
         {huecos.map((x, i) => (
           <button
@@ -146,17 +149,17 @@ function CitaCard({ tramite, huecos }: CitaOutput) {
         ))}
         <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
           <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <CalendarIcon className="size-3.5" /> La confirmación final la haces tú en la sede.
+            <CalendarIcon className="size-3.5" /> {c.confirmNote}
           </p>
           <Button
             disabled={!h}
             onClick={() =>
               h &&
-              ask(`Reserva la cita de ${tramite.toLowerCase()} en ${h.oficina}, el ${fechaCorta.format(new Date(h.fecha))} a las ${h.hora}`)
+              ask(c.askReserve(tramite, h.oficina, fechaCorta.format(new Date(h.fecha)), h.hora))
             }
             size="sm"
           >
-            Reservar este hueco
+            {c.reserveCta}
           </Button>
         </div>
       </div>

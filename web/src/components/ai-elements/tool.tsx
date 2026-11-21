@@ -19,6 +19,7 @@ import {
 import type { ComponentProps, ReactNode } from "react";
 import { isValidElement } from "react";
 
+import { useI18n } from "@/i18n/i18n";
 import { CodeBlock } from "./code-block";
 
 export type ToolProps = ComponentProps<typeof Collapsible>;
@@ -44,16 +45,6 @@ export type ToolHeaderProps = {
     }
 );
 
-const statusLabels: Record<ToolPart["state"], string> = {
-  "approval-requested": "Esperando aprobación",
-  "approval-responded": "Respondido",
-  "input-available": "En curso",
-  "input-streaming": "Pendiente",
-  "output-available": "Hecho",
-  "output-denied": "Denegado",
-  "output-error": "Error",
-};
-
 const statusIcons: Record<ToolPart["state"], ReactNode> = {
   "approval-requested": <ClockIcon className="size-4 text-yellow-600" />,
   "approval-responded": <CheckCircleIcon className="size-4 text-blue-600" />,
@@ -64,10 +55,11 @@ const statusIcons: Record<ToolPart["state"], ReactNode> = {
   "output-error": <XCircleIcon className="size-4 text-red-600" />,
 };
 
-export const getStatusBadge = (status: ToolPart["state"]) => (
+/** Status labels come from the current language (`chat.tool.status`). */
+export const getStatusBadge = (status: ToolPart["state"], labels: Record<ToolPart["state"], string>) => (
   <Badge className="gap-1.5 rounded-full text-xs" variant="secondary">
     {statusIcons[status]}
-    {statusLabels[status]}
+    {labels[status]}
   </Badge>
 );
 
@@ -79,6 +71,7 @@ export const ToolHeader = ({
   toolName,
   ...props
 }: ToolHeaderProps) => {
+  const { t } = useI18n();
   const derivedName =
     type === "dynamic-tool" ? toolName : type.split("-").slice(1).join("-");
 
@@ -93,7 +86,7 @@ export const ToolHeader = ({
       <div className="flex items-center gap-2">
         <WrenchIcon className="size-4 text-muted-foreground" />
         <span className="font-medium text-sm">{title ?? derivedName}</span>
-        {getStatusBadge(state)}
+        {getStatusBadge(state, t.chat.tool.status)}
       </div>
       <ChevronDownIcon className="size-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
     </CollapsibleTrigger>
@@ -116,16 +109,19 @@ export type ToolInputProps = ComponentProps<"div"> & {
   input: ToolPart["input"];
 };
 
-export const ToolInput = ({ className, input, ...props }: ToolInputProps) => (
-  <div className={cn("space-y-2 overflow-hidden", className)} {...props}>
-    <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
-      Parámetros
-    </h4>
-    <div className="rounded-md bg-muted/50">
-      <CodeBlock code={JSON.stringify(input, null, 2)} language="json" />
+export const ToolInput = ({ className, input, ...props }: ToolInputProps) => {
+  const { t } = useI18n();
+  return (
+    <div className={cn("space-y-2 overflow-hidden", className)} {...props}>
+      <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
+        {t.chat.tool.params}
+      </h4>
+      <div className="rounded-md bg-muted/50">
+        <CodeBlock code={JSON.stringify(input, null, 2)} language="json" />
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 export type ToolOutputProps = ComponentProps<"div"> & {
   output: ToolPart["output"];
@@ -138,6 +134,7 @@ export const ToolOutput = ({
   errorText,
   ...props
 }: ToolOutputProps) => {
+  const { t } = useI18n();
   if (!(output || errorText)) {
     return null;
   }
@@ -155,7 +152,7 @@ export const ToolOutput = ({
   return (
     <div className={cn("space-y-2", className)} {...props}>
       <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
-        {errorText ? "Error" : "Resultado"}
+        {errorText ? t.chat.tool.error : t.chat.tool.result}
       </h4>
       <div
         className={cn(

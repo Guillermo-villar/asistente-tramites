@@ -21,17 +21,11 @@ import { Shimmer } from "@/components/ai-elements/shimmer";
 import { Source, Sources, SourcesContent, SourcesTrigger } from "@/components/ai-elements/sources";
 import { Tool, ToolContent, ToolHeader, ToolInput, ToolOutput, type ToolPart } from "@/components/ai-elements/tool";
 import { LogoMark } from "@/components/brand/logo";
-import { AskContext, ToolResultCard, toolLabels } from "@/components/chat/tool-cards";
+import { AskContext, ToolResultCard } from "@/components/chat/tool-cards";
+import { useI18n } from "@/i18n/i18n";
 import { cn } from "@/lib/utils";
 
 export type ChatHelpers = UseChatHelpers<UIMessage>;
-
-const sugerencias = [
-  { text: "¿Cómo funciona la extensión?", icon: PuzzleIcon },
-  { text: "Necesito el NIE" },
-  { text: "¿Cómo hago la renta?" },
-  { text: "Me he quedado en paro" },
-];
 
 /**
  * The assistant, embedded in the landing hero. Empty, it is just a prompt box with a few
@@ -39,6 +33,9 @@ const sugerencias = [
  */
 export function ChatPanel({ chat, className }: { chat: ChatHelpers; className?: string }) {
   const { messages, sendMessage, status, stop, setMessages } = chat;
+  const { t } = useI18n();
+  // The first suggestion is about the extension, so it gets the puzzle icon.
+  const sugerencias = t.chat.suggestions.map((text, i) => ({ text, icon: i === 0 ? PuzzleIcon : undefined }));
   const send = (text: string) => {
     if (text.trim()) sendMessage({ text });
   };
@@ -48,11 +45,11 @@ export function ChatPanel({ chat, className }: { chat: ChatHelpers; className?: 
       onSubmit={(m: PromptInputMessage) => send(m.text)}
     >
       <PromptInputBody>
-        <PromptInputTextarea className="min-h-11" />
+        <PromptInputTextarea className="min-h-11" placeholder={t.chat.placeholder} />
       </PromptInputBody>
       <PromptInputFooter>
         <PromptInputTools>
-          <span className="px-2 text-[11px] text-muted-foreground">Nada se envía sin tu confirmación</span>
+          <span className="px-2 text-[11px] text-muted-foreground">{t.chat.footnote}</span>
         </PromptInputTools>
         <PromptInputSubmit onStop={stop} status={status} />
       </PromptInputFooter>
@@ -92,7 +89,7 @@ export function ChatPanel({ chat, className }: { chat: ChatHelpers; className?: 
       >
         <header className="flex items-center gap-2.5 border-b px-4 py-2.5">
           <LogoMark size={22} />
-          <p className="flex-1 text-sm font-medium">Asistente de trámites</p>
+          <p className="flex-1 text-sm font-medium">{t.chat.title}</p>
           <button
             className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
             onClick={() => {
@@ -101,7 +98,7 @@ export function ChatPanel({ chat, className }: { chat: ChatHelpers; className?: 
             }}
             type="button"
           >
-            <RotateCcwIcon className="size-3.5" /> Nueva
+            <RotateCcwIcon className="size-3.5" /> {t.chat.reset}
           </button>
         </header>
 
@@ -113,7 +110,7 @@ export function ChatPanel({ chat, className }: { chat: ChatHelpers; className?: 
             {status === "submitted" && (
               <div className="flex items-center gap-2.5 text-sm text-muted-foreground">
                 <span className="size-1.5 animate-pulse rounded-full bg-brand-red" />
-                <Shimmer>Leyendo tu consulta…</Shimmer>
+                <Shimmer>{t.chat.reading}</Shimmer>
               </div>
             )}
           </ConversationContent>
@@ -162,8 +159,9 @@ function ChatMessage({ message, streaming }: { message: UIMessage; streaming: bo
 }
 
 function ToolBlock({ part }: { part: ToolPart }) {
+  const { t } = useI18n();
   const name = getToolName(part);
-  const label = toolLabels[name] ?? { running: `${name}…`, done: name };
+  const label = t.tools[name] ?? { running: `${name}…`, done: name };
 
   if (part.state !== "output-available") {
     return (
@@ -176,9 +174,9 @@ function ToolBlock({ part }: { part: ToolPart }) {
 
   const header =
     part.type === "dynamic-tool" ? (
-      <ToolHeader state={part.state} title={`Consultado: ${label.done}`} toolName={part.toolName} type={part.type} />
+      <ToolHeader state={part.state} title={t.chat.consulted(label.done)} toolName={part.toolName} type={part.type} />
     ) : (
-      <ToolHeader state={part.state} title={`Consultado: ${label.done}`} type={part.type} />
+      <ToolHeader state={part.state} title={t.chat.consulted(label.done)} type={part.type} />
     );
 
   return (
