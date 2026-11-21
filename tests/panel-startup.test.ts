@@ -10,14 +10,14 @@ beforeAll(async () => {
 })
 afterEach(() => { for (const panel of panels.splice(0)) panel.window.close() })
 
-function openPanel({ provider = 'openai', failStorage = false, failRender = false, fetchImpl = fetch } = {}) {
+function openPanel({ provider = 'openai', v = 2, failStorage = false, failRender = false, fetchImpl = fetch } = {}) {
   const panel = new JSDOM('<div id="root"></div>', { url: 'https://extension.test/', runScripts: 'outside-only', pretendToBeVisual: true, virtualConsole: new VirtualConsole() })
   panels.push(panel)
   const event = { addListener() {}, removeListener() {} }
   const executeScript = vi.fn(async (_details: { args?: unknown[] }) => [{ frameId: 0, result: { ok: true } }])
   const get = vi.fn(async () => {
     if (failStorage) throw new Error('Extension context invalidated.')
-    return { settings: { provider } }
+    return { settings: { provider, v } }
   })
   Object.assign(panel.window, {
     TextEncoder, TextDecoder, fetch: fetchImpl,
@@ -81,7 +81,13 @@ describe('built extension panel', () => {
     await vi.waitFor(() => expect([...document.querySelectorAll('.msg')].map((m) => m.textContent?.trim())).toEqual(['Pedir cita para el pasaporte', 'Nueva respuesta']))
   })
 
-  it('opens onboarding when no API key is configured', async () => {
+  it('moves settings saved before OpenAI became the default to OpenAI', async () => {
+    const { document } = openPanel({ provider: 'anthropic', v: 1 })
+    await vi.waitFor(() => expect(document.querySelector('textarea')).not.toBeNull())
+    expect(document.querySelector('.onboarding')).toBeNull()
+  })
+
+  it('opens onboarding when Anthropic is chosen without an API key', async () => {
     const { document } = openPanel({ provider: 'anthropic' })
     await vi.waitFor(() => expect(document.querySelector('.onboarding input')).not.toBeNull())
     expect(document.querySelector('.brand-lockup')).not.toBeNull()
@@ -90,7 +96,7 @@ describe('built extension panel', () => {
   it('reports storage failure and retries without leaving a blank panel', async () => {
     const { document, get } = openPanel({ failStorage: true })
     await vi.waitFor(() => expect(document.querySelector('[role="alert"]')?.textContent).toContain('Extension context invalidated.'))
-    get.mockResolvedValue({ settings: { provider: 'openai' } })
+    get.mockResolvedValue({ settings: { provider: 'openai', v: 2 } })
     document.querySelector<HTMLButtonElement>('button')!.click()
     await vi.waitFor(() => expect(document.querySelector('textarea')).not.toBeNull())
     expect(document.querySelector('[role="alert"]')).toBeNull()

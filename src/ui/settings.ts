@@ -11,15 +11,15 @@ export type Settings = {
   theme: 'system' | 'light' | 'dark'
 }
 
-export const DEFAULTS: Settings = { provider: 'anthropic', model: 'claude-opus-5-5', effort: 'medium', theme: 'system' }
+export const DEFAULTS: Settings = { provider: 'openai', model: 'claude-opus-5-5', effort: 'medium', theme: 'system' }
 export const MODELS: { id: ModelId; label: string; note: string }[] = [
   { id: 'claude-opus-5-5', label: 'Claude Opus 5.5', note: 'el más capaz (recomendado)' },
   { id: 'claude-sonnet-5-5', label: 'Claude Sonnet 5.5', note: 'más rápido y barato' },
   { id: 'claude-haiku-5-5', label: 'Claude Haiku 5.5', note: 'el más rápido y barato' },
 ]
 export const PROVIDERS: { id: Provider; label: string }[] = [
-  { id: 'anthropic', label: 'Claude (tu clave de API)' },
   { id: 'openai', label: 'OpenAI (servidor local)' },
+  { id: 'anthropic', label: 'Claude (tu clave de API)' },
 ]
 export const EFFORTS: { id: Effort; label: string }[] = [
   { id: 'low', label: 'Bajo' },
@@ -37,16 +37,22 @@ export const THEMES: { id: Settings['theme']; label: string }[] = [
 const KEY = 'settings'
 const API_KEY = 'anthropicApiKey'
 
+/** Bumped when a default changes for everyone. 2: OpenAI through the local server became the provider. */
+const VERSION = 2
+
 export async function loadSettings(): Promise<Settings> {
-  const stored = (await chrome.storage.local.get(KEY))[KEY] as Partial<Settings> | undefined
-  const merged = { ...DEFAULTS, ...stored }
+  const { v, ...stored } = ((await chrome.storage.local.get(KEY))[KEY] ?? {}) as Partial<Settings> & { v?: number }
+  const merged: Settings = { ...DEFAULTS, ...stored }
+  // Settings saved before version 2 picked Anthropic only because it was the default: move them to OpenAI
+  // once. Whoever chooses Anthropic in Ajustes afterwards keeps it.
+  if ((v ?? 1) < 2) merged.provider = 'openai'
   if (!MODELS.some((m) => m.id === merged.model)) merged.model = DEFAULTS.model
   if (!PROVIDERS.some((p) => p.id === merged.provider)) merged.provider = DEFAULTS.provider
   return merged
 }
 
 export async function saveSettings(settings: Settings): Promise<void> {
-  await chrome.storage.local.set({ [KEY]: settings })
+  await chrome.storage.local.set({ [KEY]: { ...settings, v: VERSION } })
 }
 
 /** The person's own Anthropic API key. Kept in this browser only (chrome.storage.local). */
