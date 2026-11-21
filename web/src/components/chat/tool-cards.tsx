@@ -16,6 +16,9 @@ import { cn } from "@/lib/utils";
 import type { FichaCatalogo } from "@/data/tramites";
 import type { ExtensionPlan } from "@/lib/extension-catalog";
 import { startInExtension, useExtensionInstalled, type StartResult } from "@/lib/extension-bridge";
+import { useI18n } from "@/i18n/i18n";
+import type { Who } from "@/i18n/messages/es";
+import { withBold } from "@/lib/with-bold";
 
 /** Lets a card send a follow-up message to the chat. */
 export const AskContext = createContext<(text: string) => void>(() => {});
@@ -33,12 +36,6 @@ export function ToolResultCard({ name, output }: { name: string; output: unknown
       return null;
   }
 }
-
-export const toolLabels: Record<string, { running: string; done: string }> = {
-  buscar_tramite: { running: "Buscando en el catálogo de trámites…", done: "Catálogo de trámites" },
-  explicar_extension: { running: "Preparando la guía de la extensión…", done: "Guía de la extensión" },
-  plan_extension: { running: "Leyendo el mapa del trámite…", done: "Mapa del trámite en la extensión" },
-};
 
 function Shell({ eyebrow, children }: { eyebrow: string; children: React.ReactNode }) {
   return (
@@ -61,6 +58,7 @@ const host = (url: string) => new URL(url).hostname.replace(/^www\./, "");
  */
 function HandoffBox({ text, url, mapped }: { text: string; url: string; mapped: boolean }) {
   const installed = useExtensionInstalled();
+  const h = useI18n().t.cards.handoff;
   const [state, setState] = useState<"idle" | "opening" | StartResult>("idle");
   const [copiado, setCopiado] = useState(false);
 
@@ -79,10 +77,9 @@ function HandoffBox({ text, url, mapped }: { text: string; url: string; mapped: 
 
   return (
     <div className="rounded-xl bg-brand-red/[0.04] p-4 ring-1 ring-brand-red/15">
-      <p className="text-sm font-semibold">Sigue en la web oficial, con la extensión</p>
+      <p className="text-sm font-semibold">{h.title}</p>
       <p className="mt-1 text-[13px] leading-snug text-muted-foreground">
-        Se abre <b className="font-medium text-foreground">{host(url)}</b> en una pestaña nueva con el asistente al
-        lado. Ya sabe qué quieres hacer y te lleva hasta ello{mapped ? "" : ", leyendo la página"}.
+        {withBold(h.opens(host(url), mapped), "font-medium text-foreground")}
       </p>
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -93,16 +90,16 @@ function HandoffBox({ text, url, mapped }: { text: string; url: string; mapped: 
             onClick={start}
             size="sm"
           >
-            {state === "opening" ? <Spinner /> : <PuzzleIcon />} Hacerlo con la extensión
+            {state === "opening" ? <Spinner /> : <PuzzleIcon />} {h.cta}
           </Button>
         ) : (
           <span className="inline-flex items-center gap-1.5 rounded-md border border-dashed px-2.5 py-1.5 text-xs text-muted-foreground">
-            <PuzzleIcon className="size-3.5" /> Instala la extensión para continuar · Próximamente
+            <PuzzleIcon className="size-3.5" /> {h.install}
           </span>
         )}
         <Button asChild size="sm" variant="ghost">
           <a href={url} rel="noreferrer" target="_blank">
-            Solo abrir la web <ArrowUpRightIcon />
+            {h.openOnly} <ArrowUpRightIcon />
           </a>
         </Button>
       </div>
@@ -111,17 +108,17 @@ function HandoffBox({ text, url, mapped }: { text: string; url: string; mapped: 
         <p className={cn("mt-3 text-[13px] leading-snug", state.ok ? "text-status-done" : "text-destructive")}>
           {state.ok
             ? state.panel
-              ? `Listo: se ha abierto ${host(url)} con el asistente. Sigue allí.`
-              : `Se ha abierto ${host(url)}. Pulsa el icono del Asistente de trámites en la barra del navegador (lleva un 1) y empieza solo.`
+              ? h.okPanel(host(url))
+              : h.okNoPanel(host(url))
             : state.reason === "url"
-              ? "La extensión no puede abrir esta web: no es una web oficial que conozca."
-              : "La extensión no ha respondido. Recarga esta página y vuelve a intentarlo."}
+              ? h.errUrl
+              : h.errOther}
         </p>
       )}
 
       {installed && (
         <p className="mt-3 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-          ¿Ya tienes la web abierta? Abre el panel y escríbele
+          {h.alreadyOpen}
           <button
             className="inline-flex items-center gap-1 rounded bg-brand-ink px-1.5 py-0.5 text-[11px] text-white"
             onClick={copiar}
@@ -129,7 +126,7 @@ function HandoffBox({ text, url, mapped }: { text: string; url: string; mapped: 
           >
             «{text}» <CopyIcon className="size-3" />
           </button>
-          {copiado && <span className="text-status-done">Copiado</span>}
+          {copiado && <span className="text-status-done">{h.copied}</span>}
         </p>
       )}
     </div>
@@ -139,6 +136,7 @@ function HandoffBox({ text, url, mapped }: { text: string; url: string; mapped: 
 /* ---------- Cards ---------- */
 
 function FichaCard({ ficha }: { ficha: FichaCatalogo }) {
+  const c = useI18n().t.cards;
   const [hechos, setHechos] = useState<Set<number>>(new Set());
   const toggle = (i: number) =>
     setHechos((prev) => {
@@ -158,7 +156,7 @@ function FichaCard({ ficha }: { ficha: FichaCatalogo }) {
 
         <div>
           <p className="mb-2 text-xs font-medium text-muted-foreground">
-            Qué necesitas · {hechos.size}/{ficha.requisitos.length}
+            {c.needs(hechos.size, ficha.requisitos.length)}
           </p>
           <ul className="space-y-1">
             {ficha.requisitos.map((r, i) => (
@@ -198,16 +196,15 @@ function FichaCard({ ficha }: { ficha: FichaCatalogo }) {
   );
 }
 
-type Who = "tu" | "extension" | "web";
-
-const laneStyle: Record<Who, { label: string; className: string; icon: typeof UserIcon }> = {
-  tu: { label: "Tú", className: "bg-brand-gold text-brand-ink", icon: UserIcon },
-  extension: { label: "Extensión", className: "bg-brand-red/10 text-brand-red", icon: PuzzleIcon },
-  web: { label: "Esta web", className: "bg-foreground/[0.07] text-foreground/70", icon: GlobeIcon },
+const laneStyle: Record<Who, { className: string; icon: typeof UserIcon }> = {
+  tu: { className: "bg-brand-gold text-brand-ink", icon: UserIcon },
+  extension: { className: "bg-brand-red/10 text-brand-red", icon: PuzzleIcon },
+  web: { className: "bg-foreground/[0.07] text-foreground/70", icon: GlobeIcon },
 };
 
 function Lane({ who, children }: { who: Who; children: React.ReactNode }) {
   const l = laneStyle[who];
+  const label = useI18n().t.cards.lanes[who];
   return (
     <div className="flex items-start gap-2 text-[13px] leading-snug">
       <span className="w-[84px] shrink-0">
@@ -218,7 +215,7 @@ function Lane({ who, children }: { who: Who; children: React.ReactNode }) {
           )}
         >
           <l.icon className="size-3" />
-          {l.label}
+          {label}
         </span>
       </span>
       <span>{children}</span>
@@ -226,60 +223,23 @@ function Lane({ who, children }: { who: Who; children: React.ReactNode }) {
   );
 }
 
-/** The whole journey: discovery here, hand-off to the extension, guidance inside the official site. */
-const viaje: { titulo: string; lanes: [Who, string][] }[] = [
-  {
-    titulo: "Aquí descubres qué trámite es",
-    lanes: [
-      ["tu", "Cuentas qué necesitas, con tus palabras."],
-      ["web", "Te dice qué trámite es, quién lo gestiona, qué tener a mano y cómo se entra."],
-    ],
-  },
-  {
-    titulo: "Pulsas «Hacerlo con la extensión»",
-    lanes: [
-      ["tu", "Un clic."],
-      ["extension", "Abre la web oficial en una pestaña nueva, con su panel al lado, y ya sabe qué quieres hacer."],
-    ],
-  },
-  {
-    titulo: "Te lleva hasta el trámite",
-    lanes: [
-      ["tu", "Nada: miras cómo avanza."],
-      ["extension", "Sigue enlaces y abre menús y pestañas hasta el formulario. Solo en webs oficiales."],
-    ],
-  },
-  {
-    titulo: "Rellenas el formulario",
-    lanes: [
-      ["tu", "Escribes tus datos y eliges las opciones."],
-      ["extension", "Rodea cada campo con un recuadro amarillo y te dice qué poner. No escribe nada por ti."],
-    ],
-  },
-  {
-    titulo: "Terminas tú",
-    lanes: [
-      ["tu", "Revisas, firmas, pagas o presentas, y guardas el justificante."],
-      ["extension", "Te señala el botón final y te recuerda revisar. Nunca lo pulsa."],
-    ],
-  },
-];
-
 type GuideOutput = { tramites: { titulo: string; sitio: string }[] };
 
 function ExtensionGuideCard({ tramites }: GuideOutput) {
   const ask = useContext(AskContext);
   const installed = useExtensionInstalled();
+  const { t } = useI18n();
+  const g = t.cards.guide;
   return (
-    <Shell eyebrow="De esta web a la web oficial">
+    <Shell eyebrow={g.eyebrow}>
       <ol className="divide-y">
-        {viaje.map((g, i) => (
-          <li key={g.titulo} className="space-y-2 px-4 py-3">
+        {t.cards.journey.map((step, i) => (
+          <li key={i} className="space-y-2 px-4 py-3">
             <p className="text-sm font-semibold">
               <span className="mr-2 font-slab text-brand-red">{i + 1}</span>
-              {g.titulo}
+              {step.title}
             </p>
-            {g.lanes.map(([who, text]) => (
+            {step.lanes.map(([who, text]) => (
               <Lane key={who} who={who}>
                 {text}
               </Lane>
@@ -290,21 +250,21 @@ function ExtensionGuideCard({ tramites }: GuideOutput) {
       <div className="border-t bg-muted/40 px-4 py-3">
         <p className="text-xs text-muted-foreground">
           {installed ? (
-            <span className="font-medium text-status-done">✓ Tienes la extensión instalada en este navegador.</span>
+            <span className="font-medium text-status-done">{g.installed}</span>
           ) : (
-            "Necesitas la extensión instalada (próximamente para Chrome y Safari)."
+            g.needInstall
           )}
         </p>
-        <p className="mt-3 text-xs font-medium text-muted-foreground">Ya sabe guiarte en estos trámites</p>
+        <p className="mt-3 text-xs font-medium text-muted-foreground">{g.knows}</p>
         <div className="mt-2 flex flex-wrap gap-1.5">
-          {tramites.map((t) => (
+          {tramites.map((x) => (
             <button
-              key={t.titulo}
+              key={x.titulo}
               className="rounded-full border bg-background px-2.5 py-1 text-left text-xs transition-colors hover:border-brand-red/40 hover:text-brand-red"
-              onClick={() => ask(`¿Cómo hago «${t.titulo}» con la extensión?`)}
+              onClick={() => ask(t.chat.askPlan(x.titulo))}
               type="button"
             >
-              {t.titulo}
+              {x.titulo}
             </button>
           ))}
         </div>
@@ -314,8 +274,9 @@ function ExtensionGuideCard({ tramites }: GuideOutput) {
 }
 
 function PlanCard({ plan }: { plan: ExtensionPlan }) {
+  const c = useI18n().t.cards.plan;
   return (
-    <Shell eyebrow={`${plan.sitio} · la extensión tiene su mapa`}>
+    <Shell eyebrow={c.eyebrow(plan.sitio)}>
       <div className="space-y-4 p-4">
         <div>
           <h3 className="text-base font-semibold tracking-tight">{plan.tramite}</h3>
@@ -325,13 +286,13 @@ function PlanCard({ plan }: { plan: ExtensionPlan }) {
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="rounded-lg bg-muted/50 p-3">
             <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-              <KeyRoundIcon className="size-3.5" /> Cómo se entra
+              <KeyRoundIcon className="size-3.5" /> {c.access}
             </p>
-            <p className="mt-1 text-sm first-letter:uppercase">{plan.acceso.join(" o ")}</p>
+            <p className="mt-1 text-sm first-letter:uppercase">{plan.acceso.join(c.or)}</p>
           </div>
           {plan.necesitas.length > 0 && (
             <div className="rounded-lg bg-muted/50 p-3">
-              <p className="text-xs font-medium text-muted-foreground">Ten a mano</p>
+              <p className="text-xs font-medium text-muted-foreground">{c.have}</p>
               <ul className="mt-1 space-y-1 text-[13px] leading-snug">
                 {plan.necesitas.map((n) => (
                   <li key={n}>· {n}</li>
@@ -342,7 +303,7 @@ function PlanCard({ plan }: { plan: ExtensionPlan }) {
         </div>
 
         <div>
-          <p className="mb-2 text-xs font-medium text-muted-foreground">Qué pasará en la web oficial</p>
+          <p className="mb-2 text-xs font-medium text-muted-foreground">{c.whatHappens}</p>
           <ol className="space-y-3">
             {plan.pasos.map((p, i) => (
               <li key={p.titulo} className="space-y-1.5">
@@ -360,7 +321,7 @@ function PlanCard({ plan }: { plan: ExtensionPlan }) {
         <HandoffBox mapped text={plan.frase} url={plan.url} />
         {plan.borrador && (
           <p className="text-[11px] text-muted-foreground">
-            Mapa en revisión: si la web ha cambiado, la extensión se guía por lo que vea en pantalla.
+            {c.draft}
           </p>
         )}
       </div>

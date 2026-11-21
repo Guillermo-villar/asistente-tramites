@@ -1,4 +1,6 @@
 import { RAW_PLUGINS } from "../../../plugins/index";
+import type { Lang } from "@/i18n/langs";
+import { messages } from "@/i18n/messages";
 
 /**
  * What the browser extension can guide, read straight from its site maps (plugins/*.json at the
@@ -40,15 +42,24 @@ export type SiteMap = {
 
 export const siteMaps = RAW_PLUGINS as SiteMap[];
 
-export const loginLabel: Record<LoginMethod, string> = {
-  clave: "Cl@ve",
-  clave_pin: "Cl@ve PIN",
-  clave_permanente: "Cl@ve permanente",
-  certificado: "certificado digital",
-  dnie: "DNIe",
-  referencia: "número de referencia",
-  sms: "SMS",
-  sin_identificacion: "sin identificarte",
+/**
+ * Extra keywords in ca/eu/gl/en, kept on the web side so the shared site maps stay as they are.
+ * The maps' own keywords are in Spanish. Matching ignores accents and needs every word present.
+ */
+const extraKeywords: Record<string, string[]> = {
+  "pedir-cita": [
+    "renovar dni", "passaport", "renovar passaport", "cita passaport",
+    "nana berritu", "nan berritu", "nan hitzordua", "pasaportea",
+    "renew dni", "dni appointment", "renew passport", "passport",
+  ],
+  "consultar-anular": ["cancel dni appointment", "change dni appointment", "nan hitzordua ezeztatu"],
+  requisitos: ["dni requirements", "what to bring dni", "dni photo", "passport requirements", "nan baldintzak"],
+  "alquiler-asequible": [
+    "lloguer assequible", "habitatge assequible",
+    "aluguer asequible", "aluguer accesible", "vivenda asequible",
+    "alokairu eskuragarri", "alokairu eskuragarria", "etxebizitza eskuragarri",
+    "affordable rent", "affordable housing", "social housing",
+  ],
 };
 
 const norm = (s: string) =>
@@ -67,7 +78,7 @@ export function findProcedure(text: string): { site: SiteMap; procedure: MapProc
   let best: { site: SiteMap; procedure: MapProcedure; score: number } | undefined;
   for (const site of siteMaps) {
     for (const procedure of site.procedures) {
-      for (const k of [...procedure.keywords, procedure.title]) {
+      for (const k of [...procedure.keywords, procedure.title, ...(extraKeywords[procedure.id] ?? [])]) {
         const kw = norm(k).split(/\s+/).filter((w) => w.length > 1);
         if (kw.length && kw.every((w) => words.has(w)) && (!best || kw.length > best.score)) {
           best = { site, procedure, score: kw.length };
@@ -92,7 +103,9 @@ export type ExtensionPlan = {
   frase: string;
 };
 
-export function planFor(site: SiteMap, p: MapProcedure): ExtensionPlan {
+/** The maps are in Spanish; the texts the web adds around them follow `lang`. */
+export function planFor(site: SiteMap, p: MapProcedure, lang: Lang = "es"): ExtensionPlan {
+  const x = messages[lang].extensionPlan;
   return {
     sitio: site.name,
     organismo: site.authority,
@@ -100,14 +113,12 @@ export function planFor(site: SiteMap, p: MapProcedure): ExtensionPlan {
     tramite: p.title,
     resumen: p.summary,
     url: p.entry_url,
-    acceso: p.login.map((l) => loginLabel[l]),
+    acceso: p.login.map((l) => x.login[l]),
     necesitas: p.you_need ?? [],
     pasos: p.steps.map((s) => ({
       titulo: s.title,
       // The map's guidance is written for the assistant; the person gets what that means for them.
-      extension: s.person_does
-        ? "Te lleva a esta pantalla, te explica qué es cada cosa y señala con un recuadro dónde actuar."
-        : "Lo hace por ti: navega hasta la información, la lee y te la explica.",
+      extension: s.person_does ? x.stepPerson : x.stepAuto,
       tu: s.person_does ?? null,
     })),
     frase: p.title,

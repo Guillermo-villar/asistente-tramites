@@ -1,7 +1,22 @@
 /**
  * Catalogue of common trámites. The links point at the real official portals; summaries and
  * requirements are a simplified guide, so always check the official page before applying.
+ *
+ * This file holds the language-neutral part (id, link, search keywords). The texts shown to
+ * the user live in each language's messages file (`src/i18n/messages/*.ts`, key `tramites`).
  */
+import type { Lang } from "@/i18n/langs";
+import { messages } from "@/i18n/messages";
+
+export type TramiteId =
+  | "nie"
+  | "padron"
+  | "renta"
+  | "paro"
+  | "certificado"
+  | "clave"
+  | "vida-laboral"
+  | "carnet";
 
 export type Categoria =
   | "Extranjería"
@@ -12,145 +27,112 @@ export type Categoria =
   | "Seguridad Social"
   | "Tráfico";
 
-export type FichaCatalogo = {
-  id: string;
+/** What a user sees about a trámite, in one language. */
+export type FichaTexto = {
   titulo: string;
   organismo: string;
-  categoria: Categoria;
   resumen: string;
   requisitos: string[];
   duracion: string;
   coste: string;
+};
+
+type FichaBase = {
+  id: TramiteId;
+  categoria: Categoria;
   url: string;
+  /** Word starts, in every supported language, that point to this trámite. */
   palabrasClave: string[];
 };
 
-export const catalogo: FichaCatalogo[] = [
+export type FichaCatalogo = FichaBase & FichaTexto;
+
+const catalogo: FichaBase[] = [
   {
     id: "nie",
-    titulo: "Asignación de NIE",
-    organismo: "Policía Nacional · Extranjería",
     categoria: "Extranjería",
-    resumen:
-      "Número de Identidad de Extranjero, necesario para trabajar, abrir una cuenta o firmar un contrato en España.",
-    requisitos: [
-      "Formulario EX-15 cumplimentado",
-      "Pasaporte o documento de identidad y copia",
-      "Justificante del motivo (oferta de trabajo, matrícula, compraventa…)",
-      "Justificante del pago de la tasa 790 código 012",
-    ],
-    duracion: "En el día de la cita, en la mayoría de oficinas",
-    coste: "Tasa 790-012 (consulta el importe vigente)",
     url: "https://icp.administracionelectronica.gob.es/icpplus/index.html",
-    palabrasClave: ["nie", "extranjer", "residencia", "ex-15"],
+    palabrasClave: ["nie", "extranjer", "residencia", "ex-15", "estranger", "residènc", "atzerritar", "estranxeir", "foreigner", "residence"],
   },
   {
     id: "padron",
-    titulo: "Alta en el padrón municipal",
-    organismo: "Ayuntamiento",
     categoria: "Padrón",
-    resumen:
-      "Inscripción en el municipio donde vives. Da acceso a sanidad, escolarización y otros servicios.",
-    requisitos: [
-      "Documento de identidad (DNI, NIE o pasaporte)",
-      "Contrato de alquiler, escritura o autorización del titular",
-      "Formulario de inscripción del ayuntamiento",
-    ],
-    duracion: "Inmediato en la cita; certificado en 1–7 días",
-    coste: "Gratuito",
     url: "https://administracion.gob.es/pag_Home/Tu-espacio-europeo/derechos-obligaciones/ciudadanos/residencia/empadronamiento.html",
-    palabrasClave: ["padr", "empadron", "domicilio", "ayuntamiento"],
+    palabrasClave: ["padr", "empadron", "domicili", "ayuntamiento", "ajuntament", "concello", "errold", "udal", "census", "town hall"],
   },
   {
     id: "renta",
-    titulo: "Declaración de la Renta (IRPF)",
-    organismo: "Agencia Tributaria",
     categoria: "Impuestos",
-    resumen:
-      "Presentación anual del IRPF. El borrador se revisa y presenta en Renta WEB con Cl@ve, certificado o número de referencia.",
-    requisitos: [
-      "Cl@ve, certificado digital o número de referencia",
-      "Datos fiscales del ejercicio",
-      "IBAN para devolución o domiciliación",
-    ],
-    duracion: "Campaña de abril a junio",
-    coste: "Gratuito",
     url: "https://sede.agenciatributaria.gob.es/Sede/Renta.html",
-    palabrasClave: ["renta", "irpf", "hacienda", "declaraci", "borrador", "impuesto"],
+    palabrasClave: [
+      "renta", "irpf", "hacienda", "declaraci", "borrador", "impuesto",
+      "renda", "hisenda", "esborrany", "impost",
+      "errenta", "pfez", "zerga", "zirriborro",
+      "facenda",
+      "tax", "income tax", "draft",
+    ],
   },
   {
     id: "paro",
-    titulo: "Prestación por desempleo",
-    organismo: "SEPE",
     categoria: "Empleo",
-    resumen:
-      "Solicitud de la prestación contributiva tras el fin de una relación laboral. Hay 15 días hábiles para pedirla.",
-    requisitos: [
-      "Inscripción como demandante de empleo",
-      "Certificado de empresa (lo envía la empresa al SEPE)",
-      "Documento de identidad y número de cuenta",
-    ],
-    duracion: "Resolución en unos 15 días hábiles",
-    coste: "Gratuito",
     url: "https://sede.sepe.gob.es/",
-    palabrasClave: ["paro", "desempleo", "sepe", "prestaci"],
+    palabrasClave: ["paro", "desempleo", "sepe", "prestaci", "atur", "desocupaci", "langabezi", "prestazio", "desemprego", "unemploy", "jobless", "lost my job"],
   },
   {
     id: "certificado",
-    titulo: "Certificado digital de persona física",
-    organismo: "FNMT-RCM",
     categoria: "Identidad digital",
-    resumen:
-      "Firma electrónica para hacer casi cualquier trámite online. Se solicita online y se acredita la identidad en una oficina o por vídeo.",
-    requisitos: [
-      "DNI o NIE",
-      "Navegador compatible para la descarga",
-      "Acreditación de identidad (presencial o videoidentificación)",
-    ],
-    duracion: "Descarga tras acreditar la identidad",
-    coste: "Gratuito (presencial)",
     url: "https://www.sede.fnmt.gob.es/certificados/persona-fisica",
-    palabrasClave: ["certificado", "firma", "fnmt", "digital"],
+    palabrasClave: ["certificado", "firma", "fnmt", "digital", "dixital", "certificat", "signatura", "ziurtagiri", "sinadura", "sinatura", "signature"],
   },
   {
     id: "clave",
-    titulo: "Registro en Cl@ve",
-    organismo: "Gobierno de España",
     categoria: "Identidad digital",
-    resumen: "Sistema de identificación con usuario y PIN o app para la Administración electrónica.",
-    requisitos: ["DNI o NIE", "Teléfono móvil", "Carta de invitación, videollamada o registro presencial"],
-    duracion: "Inmediato por videollamada",
-    coste: "Gratuito",
     url: "https://clave.gob.es/",
-    palabrasClave: ["clave", "cl@ve", "pin", "identifica"],
+    palabrasClave: ["clave", "cl@ve", "pin", "identific", "identifikazio"],
   },
   {
     id: "vida-laboral",
-    titulo: "Informe de vida laboral",
-    organismo: "Seguridad Social · Import@ss",
     categoria: "Seguridad Social",
-    resumen: "Historial de altas y bajas en la Seguridad Social. Se descarga al momento en Import@ss.",
-    requisitos: ["Cl@ve, certificado digital o SMS al móvil registrado"],
-    duracion: "Inmediato",
-    coste: "Gratuito",
     url: "https://portal.seg-social.gob.es/wps/portal/importass/importass",
-    palabrasClave: ["vida laboral", "seguridad social", "afiliaci", "cotiza"],
+    palabrasClave: [
+      "vida laboral", "seguridad social", "afiliaci", "cotiza",
+      "seguretat social", "cotitza",
+      "lan-bizitza", "lan bizitza", "gizarte segurantza", "kotizazio",
+      "seguridade social",
+      "work history", "employment history", "social security",
+    ],
   },
   {
     id: "carnet",
-    titulo: "Renovación del permiso de conducir",
-    organismo: "DGT",
     categoria: "Tráfico",
-    resumen: "Renovación por caducidad. Puede hacerse en un centro de reconocimiento que la tramite.",
-    requisitos: ["Informe de aptitud psicofísica", "Fotografía reciente", "Pago de la tasa"],
-    duracion: "Permiso provisional en el momento",
-    coste: "Tasa DGT 4.1 (consulta el importe vigente)",
     url: "https://sede.dgt.gob.es/",
-    palabrasClave: ["carnet", "conducir", "dgt", "permiso"],
+    palabrasClave: ["carnet", "carné", "conduc", "conduir", "dgt", "permiso", "permís", "gidabaimen", "gidatze", "driving", "driver", "licence", "license"],
   },
 ];
 
-export function buscarEnCatalogo(texto: string): FichaCatalogo | undefined {
+/** The trámite with its texts in `lang`. */
+export function ficha(id: TramiteId, lang: Lang): FichaCatalogo {
+  const base = catalogo.find((f) => f.id === id)!;
+  return { ...base, ...messages[lang].tramites[id] };
+}
+
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+/** True if `term` appears in `text` at the start of a word (so "atur" doesn't match "natural"). */
+const startsWord = (text: string, term: string) =>
+  new RegExp(`(^|[^\\p{L}\\p{N}@])${escapeRe(term)}`, "u").test(text);
+
+const LANG_CODES = Object.keys(messages) as Lang[];
+
+/**
+ * Finds the trámite a free-text query is about, in any supported language: by keyword, or by
+ * its title in any language (follow-ups from the cards quote the title).
+ */
+export function buscarEnCatalogo(texto: string, lang: Lang): FichaCatalogo | undefined {
   const t = texto.toLowerCase();
-  return catalogo.find((f) => f.palabrasClave.some((k) => t.includes(k)));
+  const hit = catalogo.find(
+    (f) =>
+      f.palabrasClave.some((k) => startsWord(t, k)) ||
+      LANG_CODES.some((l) => t.includes(messages[l].tramites[f.id].titulo.toLowerCase()))
+  );
+  return hit && ficha(hit.id, lang);
 }

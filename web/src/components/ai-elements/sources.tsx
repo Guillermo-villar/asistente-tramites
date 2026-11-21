@@ -5,6 +5,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { useI18n } from "@/i18n/i18n";
 import { cn } from "@/lib/utils";
 import { BookIcon, ChevronDownIcon } from "lucide-react";
 import type { ComponentProps } from "react";
@@ -27,19 +28,22 @@ export const SourcesTrigger = ({
   count,
   children,
   ...props
-}: SourcesTriggerProps) => (
-  <CollapsibleTrigger
-    className={cn("flex items-center gap-2", className)}
-    {...props}
-  >
-    {children ?? (
-      <>
-        <p className="font-medium">{count === 1 ? "1 fuente oficial" : `${count} fuentes oficiales`}</p>
-        <ChevronDownIcon className="h-4 w-4" />
-      </>
-    )}
-  </CollapsibleTrigger>
-);
+}: SourcesTriggerProps) => {
+  const { t } = useI18n();
+  return (
+    <CollapsibleTrigger
+      className={cn("flex items-center gap-2", className)}
+      {...props}
+    >
+      {children ?? (
+        <>
+          <p className="font-medium">{t.chat.sources(count)}</p>
+          <ChevronDownIcon className="h-4 w-4" />
+        </>
+      )}
+    </CollapsibleTrigger>
+  );
+};
 
 export type SourcesContentProps = ComponentProps<typeof CollapsibleContent>;
 
