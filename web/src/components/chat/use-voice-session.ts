@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import captureModule from "./voice-capture.js?url&no-inline";
 
 const SAMPLE_RATE = 24000;
@@ -6,10 +6,24 @@ const REALTIME_URL = "wss://api.elevenlabs.io/v1/convai/realtime";
 
 type VoiceStatus = "idle" | "connecting" | "connected";
 type VoiceError = "unavailable" | "permission" | "timeout" | "connection" | "response" | "disconnected";
+type VoiceLevels = { input: number; output: number };
 type VoiceEvent = { type: string; delta?: string; item_id?: string; response?: { status?: string } };
+
+const SILENT: VoiceLevels = { input: 0, output: 0 };
+
+/** Loudness of what an analyser hears, from 0 (silence) to 1 (clear speech). */
+function loudness(analyser: AnalyserNode, samples: Float32Array<ArrayBuffer>) {
+  analyser.getFloatTimeDomainData(samples);
+  let sum = 0;
+  for (const sample of samples) sum += sample * sample;
+  return Math.min(1, Math.sqrt(sum / samples.length) * 4);
+}
 
 export function useVoiceSession() {
   const active = useRef<(() => void) | null>(null);
+  const meter = useRef<(() => VoiceLevels) | null>(null);
+  /** Live microphone and assistant loudness, for the orb. Safe to call every frame. */
+  const getLevels = useCallback(() => meter.current?.() ?? SILENT, []);
   const [status, setStatus] = useState<VoiceStatus>("idle");
   const [error, setError] = useState<VoiceError | null>(null);
 
@@ -50,6 +64,7 @@ export function useVoiceSession() {
       clearTimeout(timeout);
       abort.abort();
       active.current = null;
+      meter.current = null;
       microphone?.getTracks().forEach((track) => track.stop());
       capture?.disconnect();
       capture?.port.close();
@@ -104,7 +119,17 @@ export function useVoiceSession() {
         const pcm = btoa(String.fromCharCode(...new Uint8Array(data)));
         connection.send(JSON.stringify({ type: "input_audio_buffer.append", audio: pcm }));
       };
-      audio.createMediaStreamSource(microphone).connect(capture);
+      const input = audio.createMediaStreamSource(microphone);
+      input.connect(capture);
+      const inputMeter = audio.createAnalyser();
+      const outputMeter = audio.createAnalyser();
+      inputMeter.fftSize = outputMeter.fftSize = 512;
+      input.connect(inputMeter);
+      const output = audio.createGain();
+      output.connect(outputMeter);
+      output.connect(audio.destination);
+      const samples = new Float32Array(inputMeter.fftSize);
+      meter.current = () => ({ input: loudness(inputMeter, samples), output: loudness(outputMeter, samples) });
       const silentOutput = audio.createGain();
       silentOutput.gain.value = 0;
       capture.connect(silentOutput).connect(audio.destination);
@@ -145,7 +170,7 @@ export function useVoiceSession() {
           }
           const source = audio.createBufferSource();
           source.buffer = buffer;
-          source.connect(audio.destination);
+          source.connect(output);
           source.onended = () => {
             source.disconnect();
             playback.delete(source);
@@ -167,5 +192,5 @@ export function useVoiceSession() {
     }
   }
 
-  return { status, error, start, stop };
+  return { status, error, start, stop, getLevels };
 }

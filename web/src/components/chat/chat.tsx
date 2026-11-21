@@ -22,6 +22,7 @@ import { Source, Sources, SourcesContent, SourcesTrigger } from "@/components/ai
 import type { ToolPart } from "@/components/ai-elements/tool";
 import { LogoMark } from "@/components/brand/logo";
 import { AskContext, ToolResultCard, UserWordsContext } from "@/components/chat/tool-cards";
+import { VoiceOrb } from "@/components/chat/voice-orb";
 import { useVoiceSession } from "@/components/chat/use-voice-session";
 import { Button } from "@/components/ui/button";
 import { useI18n } from "@/i18n/i18n";
@@ -49,7 +50,39 @@ export function ChatPanel({ chat, className }: { chat: ChatHelpers; className?: 
     .filter((m) => m.role === "user")
     .map((m) => m.parts.map((p) => (p.type === "text" ? p.text : "")).join(" ").trim())
     .filter(Boolean);
-  const composer = (
+  const composer = voiceActive ? (
+    <div
+      className={cn(
+        "flex items-center border bg-card",
+        empty
+          ? "flex-col gap-5 rounded-[24px] border-foreground/10 px-6 py-8 shadow-[0_1px_2px_rgb(0_0_0/0.04),0_20px_48px_-24px_rgb(0_0_0/0.25)]"
+          : "gap-4 rounded-2xl px-4 py-3"
+      )}
+    >
+      <VoiceOrb
+        className={empty ? "my-3" : "m-1"}
+        getLevels={voice.getLevels}
+        size={empty ? 136 : 52}
+        state={voice.status === "connecting" ? "connecting" : "live"}
+      />
+      <p className={cn("text-sm text-muted-foreground", empty ? "text-center" : "flex-1")} role="status">
+        {voice.status === "connecting" ? t.chat.voice.connecting : t.chat.voice.connected}
+      </p>
+      {voice.error && <p className="text-xs text-destructive" role="alert">{t.chat.voice[voice.error]}</p>}
+      <Button
+        aria-label={voiceLabel}
+        className={cn("rounded-full", !empty && "size-9")}
+        onClick={voice.stop}
+        size={empty ? "default" : "icon"}
+        title={voiceLabel}
+        type="button"
+        variant="destructive"
+      >
+        <PhoneOffIcon aria-hidden="true" />
+        {empty && voiceLabel}
+      </Button>
+    </div>
+  ) : (
     <PromptInput
       className={cn(
         "[&_[data-slot=input-group]]:bg-card",
@@ -71,25 +104,20 @@ export function ChatPanel({ chat, className }: { chat: ChatHelpers; className?: 
       <PromptInputFooter className={cn(empty ? "px-4 pb-4" : "px-3 pb-3")}>
         <PromptInputTools>
           <span className="flex items-center gap-1.5 px-1 text-xs font-normal text-muted-foreground">
-            {voiceActive ? (
-              <span role="status">{voice.status === "connecting" ? t.chat.voice.connecting : t.chat.voice.connected}</span>
-            ) : (
-              <><LockIcon className="size-3 shrink-0" /> {t.chat.footnote}</>
-            )}
+            <LockIcon className="size-3 shrink-0" /> {t.chat.footnote}
           </span>
         </PromptInputTools>
         <div className="flex shrink-0 items-center gap-1">
-          <Button
+          <button
             aria-label={voiceLabel}
-            className="size-9 rounded-full"
-            onClick={voiceActive ? voice.stop : () => void voice.start()}
-            size="icon"
+            className="relative grid size-9 place-items-center rounded-full outline-none transition-transform hover:scale-110 focus-visible:ring-3 focus-visible:ring-ring active:scale-95"
+            onClick={() => void voice.start()}
             title={voiceLabel}
             type="button"
-            variant={voiceActive ? "destructive" : "ghost"}
           >
-            {voiceActive ? <PhoneOffIcon aria-hidden="true" /> : <MicIcon aria-hidden="true" />}
-          </Button>
+            <VoiceOrb size={32} state="idle" />
+            <MicIcon aria-hidden="true" className="absolute size-3.5 text-white drop-shadow-[0_1px_1px_rgb(0_0_0/0.35)]" />
+          </button>
           <PromptInputSubmit
             className="size-9 rounded-full bg-brand-red-solid text-white hover:bg-brand-red-solid/90"
             onStop={stop}
