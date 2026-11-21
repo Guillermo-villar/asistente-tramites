@@ -1,6 +1,6 @@
 // A record of what the extension did, for reporting problems from a live run. It is kept in memory
 // only, for this panel session, and leaves the browser only when the person downloads or copies it.
-// It holds page content and platform data, so it must be treated like the data itself.
+// It holds page outlines (field values are never in them, and identifiers are masked) and the chat.
 
 declare const __BUILD__: string
 /** When this bundle was built. */
@@ -71,7 +71,7 @@ export function downloadLog(meta: Record<string, unknown>): void {
   const url = URL.createObjectURL(new Blob([exportLog(meta)], { type: 'application/json' }))
   const link = document.createElement('a')
   link.href = url
-  link.download = `coworker-extension-log-${new Date().toISOString().replace(/[:.]/g, '-')}.json`
+  link.download = `asistente-tramites-log-${new Date().toISOString().replace(/[:.]/g, '-')}.json`
   link.click()
   setTimeout(() => URL.revokeObjectURL(url), 1000)
 }

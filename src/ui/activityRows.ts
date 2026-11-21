@@ -1,51 +1,45 @@
-import { AUTO } from '../agent/conversation'
-import type { Item } from '../agent/conversation'
+import type { Item } from './conversation'
 
-// The transcript shows one line for a run of agent actions, not one line per action. This file folds
+// The transcript shows one line for a run of assistant actions, not one line per action. This file folds
 // the conversation's items into that shape; `Activity.tsx` draws it.
 
 type ToolItem = Extract<Item, { kind: 'tool' }>
-type PromptItem = Extract<Item, { kind: 'prompt' }>
 
-export type ActivityGroup = { kind: 'activity'; id: string; items: (ToolItem | PromptItem)[] }
+export type ActivityGroup = { kind: 'activity'; id: string; items: ToolItem[] }
 export type Row = Exclude<Item, ToolItem> | ActivityGroup
-export type Entry = { label: string; steps?: string[] }
 
 const TOOL_LABELS: Record<string, string> = {
-  browser_read_page: 'Reading the page',
-  browser_read_table: 'Reading a table on the page',
-  browser_act: 'Acting on the page',
-  browser_open: 'Opening a page',
-  navigate: 'Opening the platform',
-  ask_user: 'Asking you',
-  stage_for_import: 'Preparing the records for the platform',
-  read_staged_records: 'Reading the staged records',
-  api_search: 'Looking up how to do it in the platform',
-  api_describe: 'Checking a platform operation',
-  api_call: 'Calling the platform',
-  metrics_read: 'Reading metrics',
-  metrics_catalog: 'Looking up metrics',
-  population_read: 'Reading a population',
-  run_script: 'Working through the data',
-  apply_writes: 'Preparing changes in the platform',
-  apply_proposed_writes: 'Preparing changes in the platform',
-  render_ui: 'Preparing a card',
-  memory: 'Checking notes',
-  team_memory: 'Checking team notes',
+  find_procedure: 'Buscando el trámite',
+  get_procedure: 'Consultando los pasos del trámite',
+  read_page: 'Leyendo la página',
+  open_page: 'Abriendo la página',
+  click: 'Moviéndome por la sede',
+  point_to: 'Señalando en la página',
+  ask_user: 'Preguntándote',
 }
 
 export const toolLabel = (name: string): string => TOOL_LABELS[name] ?? name
 
-/** Page actions that ran without asking: they belong to the activity line, not to a card of their own. */
-function isAutoAction(item: Item): item is PromptItem {
-  return item.kind === 'prompt' && item.prompt.type === 'page_actions' && item.answer === AUTO
+/** A label for one call: the reason or instruction the model gave, when there is one. */
+export function labelFor(name: string, input: unknown): string {
+  const data = (input ?? {}) as Record<string, unknown>
+  if (name === 'click' && typeof data.reason === 'string') return data.reason
+  if (name === 'point_to' && typeof data.instruction === 'string') return `Señalado: ${data.instruction}`
+  if (name === 'open_page' && typeof data.url === 'string') {
+    try {
+      return `Abriendo ${new URL(data.url).hostname}`
+    } catch {
+      return toolLabel(name)
+    }
+  }
+  return toolLabel(name)
 }
 
-/** Fold each run of tool calls and unasked page actions into one row. */
+/** Fold each run of tool calls into one row. */
 export function toRows(items: Item[]): Row[] {
   const rows: Row[] = []
   for (const item of items) {
-    if (item.kind !== 'tool' && !isAutoAction(item)) {
+    if (item.kind !== 'tool') {
       rows.push(item)
       continue
     }
@@ -56,31 +50,11 @@ export function toRows(items: Item[]): Row[] {
   return rows
 }
 
-/** What the group did, one entry per action. A page action replaces the `browser_act` call that carried it. */
-export function entries(group: ActivityGroup): Entry[] {
-  const out: Entry[] = []
-  group.items.forEach((item, index) => {
-    if (item.kind === 'prompt') {
-      if (item.prompt.type !== 'page_actions') return
-      const { reason, steps, host } = item.prompt.request
-      out.push({ label: reason || `Acting on ${host}`, steps })
-      return
-    }
-    const next = group.items[index + 1]
-    if (item.name === 'browser_act' && next && isAutoAction(next)) return
-    out.push({ label: toolLabel(item.name) })
-  })
-  return out
-}
-
 /** The action in progress, or null when every action in the group has finished. */
 export function currentLabel(group: ActivityGroup): string | null {
   for (let index = group.items.length - 1; index >= 0; index--) {
     const item = group.items[index]
-    if (item?.kind !== 'tool' || item.status !== 'running') continue
-    const next = group.items[index + 1]
-    if (next?.kind === 'prompt' && next.prompt.type === 'page_actions' && next.prompt.request.reason) return next.prompt.request.reason
-    return toolLabel(item.name)
+    if (item?.status === 'running') return item.label
   }
   return null
 }

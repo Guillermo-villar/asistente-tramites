@@ -1,10 +1,9 @@
-// A visible pointer that glides to each element before the agent acts on it, so the person can
-// watch what the agent does (like a computer-use agent moving the mouse). It is drawn in the top
-// frame when this frame can reach it (same-origin iframes, as in Zucchetti/SitePainter portals),
-// otherwise in this frame. Like the shield it lives in a closed shadow root outside <body>, so
-// `readOutline` never reads it and the page's CSS never styles it.
+// A visible pointer that glides to each element before the assistant presses or points at it, so the
+// person can watch what it does. It is drawn in the top frame when this frame can reach it (same-origin
+// iframes, common in older government applications), otherwise in this frame. It lives in a closed
+// shadow root outside <body>, so `readOutline` never reads it and the page's CSS never styles it.
 
-const HOST_ID = 'coworker-agent-cursor'
+const HOST_ID = 'asistente-tramites-cursor'
 const MOVE_MS = 520
 const CLICK_MS = 260
 const HIDE_AFTER_MS = 6000
@@ -69,9 +68,8 @@ function drawingSurface(): { doc: Document; offset: (r: DOMRect) => { x: number;
 }
 
 function parts(doc: Document): Parts {
-  const existing = (doc as Document & { __coworkerCursor?: Parts }).__coworkerCursor
+  const existing = (doc as Document & { __asistenteCursor?: Parts }).__asistenteCursor
   if (existing?.host.isConnected) {
-    // Stay above the shield, which is appended to the same root later.
     if (doc.documentElement.lastElementChild !== existing.host) doc.documentElement.append(existing.host)
     return existing
   }
@@ -91,25 +89,18 @@ function parts(doc: Document): Parts {
   pointer.innerHTML = ARROW
   const label = doc.createElement('div')
   label.className = 'label'
-  label.textContent = 'Coworker'
+  label.textContent = 'Asistente'
   pointer.append(label)
   layer.append(box, ring, pointer)
   root.append(style, layer)
   doc.documentElement.append(host)
   const made = { doc, host, pointer, label, ring, box }
-  ;(doc as Document & { __coworkerCursor?: Parts }).__coworkerCursor = made
+  ;(doc as Document & { __asistenteCursor?: Parts }).__asistenteCursor = made
   return made
 }
 
-export function restingCursor(): void {
-  const p = parts(document)
-  if (p.pointer.style.transform) return
-  p.label.textContent = 'Coworker'
-  p.pointer.style.transform = 'translate(24px, 24px)'
-}
-
 export function clearCursor(): void {
-  const p = (document as Document & { __coworkerCursor?: Parts }).__coworkerCursor
+  const p = (document as Document & { __asistenteCursor?: Parts }).__asistenteCursor
   if (p?.hideTimer !== undefined) window.clearTimeout(p.hideTimer)
   p?.host.remove()
 }
@@ -153,12 +144,7 @@ export async function pointAt(el: Element, label: string, clicking: boolean): Pr
     }
     p.hideTimer = view.setTimeout(() => {
       p.box.style.opacity = '0'
-      if (p.doc.getElementById('coworker-page-shield')) {
-        p.label.textContent = 'Coworker'
-        p.pointer.style.transform = 'translate(24px, 24px)'
-      } else {
-        p.pointer.style.opacity = '0'
-      }
+      p.pointer.style.opacity = '0'
     }, HIDE_AFTER_MS)
   } catch {
     // The cursor is decoration: a page that refuses it must not stop the action.

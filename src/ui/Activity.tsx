@@ -1,14 +1,13 @@
 import { BrandMark } from './Brand'
 import { IconCheck } from './Icons'
-import { currentLabel, entries } from './activityRows'
+import { currentLabel } from './activityRows'
 import type { ActivityGroup } from './activityRows'
 
-/** The one line that says what the agent is doing now. The text is replaced in place as actions change. */
+/** The one line that says what the assistant is doing now. */
 export function LiveStatus({ label }: { label: string }) {
   return (
     <div className="activity live" role="status">
       <BrandMark size={14} className="activity-mark" />
-      {/* keyed so each new label fades in over the old one */}
       <span key={label} className="activity-label">
         {label}
       </span>
@@ -16,28 +15,21 @@ export function LiveStatus({ label }: { label: string }) {
   )
 }
 
-/** A run of actions: live while the agent works, then one closed line that opens to the list. */
+/** A run of actions: live while the assistant works, then one closed line that opens to the list. */
 export function Activity({ group, live }: { group: ActivityGroup; live: boolean }) {
   const current = currentLabel(group)
-  if (live || current) return <LiveStatus label={current ?? 'Thinking'} />
-  const done = entries(group)
+  if (live || current) return <LiveStatus label={current ?? 'Pensando'} />
   return (
     <details className="activity done">
       <summary>
         <IconCheck size={14} />
-        <span className="activity-label">{done.length === 1 ? done[0]?.label : `${done.length} steps`}</span>
+        <span className="activity-label">{group.items.length === 1 ? group.items[0]?.label : `${group.items.length} pasos`}</span>
       </summary>
       <ol>
-        {done.map((entry, index) => (
-          <li key={index}>
-            {entry.label}
-            {entry.steps && (
-              <ul>
-                {entry.steps.map((step, at) => (
-                  <li key={at}>{step}</li>
-                ))}
-              </ul>
-            )}
+        {group.items.map((item) => (
+          <li key={item.id} className={item.status === 'error' ? 'warn' : undefined}>
+            {item.label}
+            {item.status === 'error' ? ' (no se pudo)' : ''}
           </li>
         ))}
       </ol>

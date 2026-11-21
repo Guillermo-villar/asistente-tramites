@@ -1,0 +1,39 @@
+{
+  "id": "carpeta-ciudadana",
+  "name": "Carpeta Ciudadana",
+  "authority": "Secretaría General de Administración Digital",
+  "level": "estatal",
+  "status": "draft",
+  "domains": ["carpetaciudadana.gob.es"],
+  "home": "https://carpetaciudadana.gob.es/",
+  "notes": [
+    "La Carpeta Ciudadana reúne en un sitio los datos que tienen de la persona varias administraciones: notificaciones, expedientes, citas, títulos, vehículos, prestaciones…",
+    "Para entrar hace falta Cl@ve, certificado o DNIe.",
+    "Mapa en borrador: la dirección respondió el 2026-11-21, pero nadie ha recorrido la carpeta con sesión iniciada."
+  ],
+  "user_only": ["Acceder", "Firmar"],
+  "procedures": [
+    {
+      "id": "mis-datos",
+      "title": "Consultar mis datos en la Carpeta Ciudadana",
+      "summary": "Entrar en la Carpeta Ciudadana para ver notificaciones, expedientes, citas y los datos que guardan las administraciones.",
+      "keywords": ["carpeta ciudadana", "mis datos", "mis notificaciones", "mis expedientes", "qué sabe la administración de mí"],
+      "entry_url": "https://carpetaciudadana.gob.es/",
+      "login": ["clave", "certificado", "dnie"],
+      "steps": [
+        {
+          "title": "Entrar",
+          "url": "https://carpetaciudadana.gob.es/",
+          "guidance": "Señala el botón de acceso y explica que lleva a Cl@ve para identificarse.",
+          "person_does": "Pulsa acceder y se identifica.",
+          "user_only": ["Acceder"]
+        },
+        {
+          "title": "Moverse por las secciones",
+          "guidance": "Ya dentro, abre las secciones que pida la persona (notificaciones, expedientes, datos personales…) y explica lo que ve en cada una sin repetir datos personales."
+        }
+      ]
+    }
+  ],
+  "checked": "2026-11-21"
+}

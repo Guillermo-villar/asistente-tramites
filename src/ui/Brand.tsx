@@ -15,8 +15,8 @@ export function BrandLockup() {
     <span className="brand-lockup">
       <BrandMark />
       <span className="brand-name">
-        <span className="brand-org">HR</span>
-        <span className="brand-product">Coworker</span>
+        <span className="brand-org">Asistente</span>
+        <span className="brand-product">de trámites</span>
       </span>
     </span>
   )
