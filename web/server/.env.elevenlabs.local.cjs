@@ -1,1 +1,0 @@
-module.exports = "sk_4d0ada0cd18960fe86eb29a13b0f1e6404b505b6d111a8ab"
