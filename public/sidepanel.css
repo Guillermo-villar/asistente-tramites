@@ -1,4 +1,5 @@
-/* Palette: slate on dark, cool grey on light, periwinkle as the accent. Change the tokens below to rebrand. */
+/* Palette: slate on dark, cool grey on light, periwinkle as the accent, amber for "te toca a ti" (the same
+   amber as the highlight drawn on the page). Change the tokens below to rebrand. */
 
 @font-face {
   font-family: 'IBM Plex Sans';
@@ -88,6 +89,9 @@
   --brand-mark: #7c9cff;
   --error: #f08a8a;
   --warn: #e2b341;
+  --turn: #e2b341;
+  --turn-soft: rgba(226, 179, 65, 0.12);
+  --turn-border: rgba(226, 179, 65, 0.45);
   --code-inline-bg: rgba(255, 255, 255, 0.06);
   --label-bg: rgba(255, 255, 255, 0.04);
   --running-fg: #7c9cff;
@@ -107,7 +111,7 @@
   --r-lg: 12px;
   --r-full: 999px;
   --fs-meta: 12px;
-  --fs-body: 14px;
+  --fs-body: 15px;
   --fs-head: 16px;
   --fs-section: 21px;
   font-synthesis: none;
@@ -136,6 +140,9 @@
     --brand-mark: #2b3a67;
     --error: #b83232;
     --warn: #9a6a0a;
+    --turn: #8a5d00;
+    --turn-soft: #fdf4dc;
+    --turn-border: #e8c76a;
     --code-inline-bg: rgba(0, 0, 0, 0.06);
     --label-bg: rgba(0, 0, 0, 0.04);
     --running-fg: #3b5bdb;
@@ -167,6 +174,9 @@
   --brand-mark: #2b3a67;
   --error: #b83232;
   --warn: #9a6a0a;
+  --turn: #8a5d00;
+  --turn-soft: #fdf4dc;
+  --turn-border: #e8c76a;
   --code-inline-bg: rgba(0, 0, 0, 0.06);
   --label-bg: rgba(0, 0, 0, 0.04);
   --running-fg: #3b5bdb;
@@ -208,8 +218,8 @@ p {
 h2,
 h3 {
   font-weight: 700;
-  letter-spacing: -0.03em;
-  line-height: 1.1;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
   text-wrap: balance;
 }
 
@@ -233,18 +243,21 @@ h3 {
   flex: 1;
 }
 
+/* ---------------------------------------------------------------- controls */
+
 button,
 select,
-textarea {
+textarea,
+input {
   font: inherit;
   color: inherit;
 }
 
 button {
-  background: var(--bg);
+  background: var(--bg-card);
   border: 1px solid var(--border-load);
   border-radius: var(--r-md);
-  padding: 6px 12px;
+  padding: 7px 12px;
   font-weight: 500;
   cursor: pointer;
 }
@@ -258,7 +271,6 @@ button:disabled {
   cursor: not-allowed;
 }
 
-/* The lime carries no text on cream, so a primary button is the fill with forest ink in both themes. */
 button.primary,
 button.primary:hover:not(:disabled) {
   background: var(--accent-fill);
@@ -269,6 +281,11 @@ button.primary:hover:not(:disabled) {
 
 button.primary:hover:not(:disabled) {
   filter: brightness(1.06);
+}
+
+button.wide {
+  width: 100%;
+  padding: 10px 12px;
 }
 
 button svg {
@@ -305,20 +322,31 @@ button.ghost[aria-pressed='true'] {
 }
 
 select,
-textarea {
+textarea,
+input {
   background: var(--bg-card);
   border: 1px solid var(--border-load);
   border-radius: var(--r-md);
-  padding: 5px 8px;
+  padding: 7px 9px;
+  min-width: 0;
 }
 
-input[type='checkbox'] {
-  accent-color: var(--accent);
+input::placeholder,
+textarea::placeholder {
+  color: var(--faint);
 }
+
+label.stack,
+div.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+/* ---------------------------------------------------------------- header and site bar */
 
 .top,
-.site,
-.bar {
+.site {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
@@ -328,101 +356,7 @@ input[type='checkbox'] {
 
 .top {
   background: var(--bg-card);
-  color: var(--fg);
-  border-bottom-color: var(--border);
-  min-height: 48px;
-}
-
-.client-picker {
-  position: relative;
-  min-width: 0;
-}
-
-.client-button {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-2);
-  max-width: 100%;
-  min-width: 0;
-  padding: 4px 8px 4px 4px;
-  background: var(--bg);
-  border: 1px solid var(--border-load);
-  border-radius: var(--r-md);
-  font-weight: 500;
-}
-
-.client-button.single {
-  border-color: transparent;
-  background: none;
-}
-
-.client-button > svg {
-  color: var(--faint);
-}
-
-.client-name {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  text-align: left;
-}
-
-.client-icon {
-  width: 22px;
-  height: 22px;
-  flex-shrink: 0;
-  border-radius: var(--r-sm);
-  object-fit: contain;
-  background: #fdfdfe;
-}
-
-.client-icon.letter {
-  display: grid;
-  place-items: center;
-  background: var(--bg-selected);
-  color: var(--fg);
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.client-list {
-  position: absolute;
-  z-index: 20;
-  top: calc(100% + 4px);
-  left: 0;
-  width: max-content;
-  min-width: 100%;
-  max-width: min(300px, calc(100vw - 24px));
-  max-height: 320px;
-  overflow-y: auto;
-  margin: 0;
-  padding: 4px;
-  list-style: none;
-  background: var(--bg-raised);
-  border: 1px solid var(--border-load);
-  border-radius: var(--r-md);
-  box-shadow: var(--shadow);
-  outline: none;
-}
-
-.client-list li {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  padding: 6px 8px;
-  border-radius: var(--r-sm);
-  cursor: pointer;
-}
-
-.client-list li.active {
-  background: var(--bg-selected);
-}
-
-.client-list li > svg {
-  color: var(--accent);
-  flex-shrink: 0;
+  min-height: 52px;
 }
 
 .brand-lockup {
@@ -453,34 +387,40 @@ input[type='checkbox'] {
 
 .site {
   font-size: 13px;
+  background: var(--bg);
 }
 
-.site svg {
-  vertical-align: -3px;
+.site > svg {
+  flex-shrink: 0;
+  color: var(--faint);
+}
+
+.site.trust-mapped > svg,
+.site.trust-government > svg {
+  color: var(--accent-secondary);
+}
+
+.site.trust-approved > svg {
+  color: var(--turn);
 }
 
 .site .host {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.bar {
-  padding: 4px 8px;
-}
-
 .chip,
-.pill,
 .tag {
   font-size: 10px;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
   white-space: nowrap;
 }
 
-.chip,
-.pill {
-  padding: 2px 7px;
+.chip {
+  padding: 2px 8px;
   border-radius: var(--r-full);
   border: 1px solid var(--border);
   color: var(--muted);
@@ -488,93 +428,125 @@ input[type='checkbox'] {
   flex-shrink: 0;
 }
 
-.chip.workday,
-.chip.successfactors,
-.chip.zucchetti,
-.chip.orangehrm,
-.pill.running {
+.chip.verified,
+.chip.government {
+  color: var(--accent-secondary);
+  border-color: color-mix(in srgb, var(--accent-secondary) 40%, transparent);
+  background: color-mix(in srgb, var(--accent-secondary) 10%, transparent);
+}
+
+.chip.draft {
   color: var(--running-fg);
   background: var(--running-bg);
   border-color: var(--running-border);
 }
 
-.pill.done {
-  color: var(--accent-strong);
-  background: var(--accent-soft);
-  border-color: var(--accent-soft);
+.chip.approved {
+  color: var(--turn);
+  background: var(--turn-soft);
+  border-color: var(--turn-border);
 }
+
+/* ---------------------------------------------------------------- settings */
 
 .settings {
   display: grid;
-  gap: var(--sp-2);
+  gap: 10px;
   padding: 12px;
   border-bottom: 1px solid var(--border);
   background: var(--bg-card);
 }
 
-.settings label {
+.settings > label {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
 }
 
-.settings label.stack {
-  flex-direction: column;
-  align-items: stretch;
-  gap: var(--sp-1);
+.settings select {
+  max-width: 62%;
 }
 
-.settings textarea {
-  resize: vertical;
-  background: var(--bg);
-}
-
-.center {
+.settings .row {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  padding: var(--sp-4) 20px;
-  text-align: center;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
 }
 
-.threads {
+.approved {
   list-style: none;
   margin: 0;
-  padding: 4px 8px;
-  max-height: 40%;
-  overflow: auto;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg-card);
+  padding: 0;
+  display: grid;
+  gap: 2px;
 }
 
-.threads button {
+.approved li {
   display: flex;
+  align-items: center;
   justify-content: space-between;
   gap: var(--sp-2);
-  width: 100%;
-  text-align: left;
-  color: var(--fg);
-  font-weight: 400;
+  padding: 2px 0 2px 8px;
+  border-left: 2px solid var(--turn-border);
+  font-size: 13px;
 }
 
-.threads small {
-  color: var(--faint);
-  white-space: nowrap;
+/* ---------------------------------------------------------------- onboarding */
+
+.onboarding {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: var(--sp-4) 20px;
+  overflow-y: auto;
 }
+
+.hero {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.hero-mark,
+.empty-mark {
+  color: var(--brand-mark);
+}
+
+.promises {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+
+.promises li {
+  padding: 10px 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 0 var(--r-md) var(--r-md) 0;
+  font-size: 14px;
+}
+
+.privacy {
+  line-height: 1.5;
+}
+
+/* ---------------------------------------------------------------- conversation */
 
 .log {
   flex: 1;
   overflow-y: auto;
-  padding: 12px;
+  padding: 14px 12px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
 
-/* Rows keep their own height and the log scrolls. Without this a row with an explicit min-height (an
-   opened activity list) is squeezed once the log is full, and its content spills over the rows below. */
+/* Rows keep their own height and the log scrolls. */
 .log > * {
   flex-shrink: 0;
 }
@@ -586,15 +558,32 @@ input[type='checkbox'] {
   margin: auto 0;
 }
 
-.empty p {
-  margin-bottom: var(--sp-2);
+.starters {
+  display: grid;
+  gap: 6px;
+  margin-top: var(--sp-2);
 }
 
-.empty button {
+.starters button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
   text-align: left;
-  font-weight: 400;
+  font-weight: 500;
   background: var(--bg-card);
   border-color: var(--border);
+  padding: 9px 12px;
+}
+
+.starters button small {
+  color: var(--faint);
+  font-weight: 400;
+  font-size: var(--fs-meta);
+}
+
+.starters button:hover:not(:disabled) {
+  border-color: var(--accent);
 }
 
 /* Speakers share one neutral surface and differ by a left rail. */
@@ -637,36 +626,21 @@ input[type='checkbox'] {
 .msg.assistant h4 {
   font-size: var(--fs-head);
   font-weight: 700;
-  letter-spacing: -0.02em;
   margin: 12px 0 6px;
 }
 
 .msg.assistant table {
   display: block;
   overflow-x: auto;
-}
-
-.msg.assistant table,
-.staged-table table {
   border-collapse: collapse;
   font-size: 13px;
-  font-variant-numeric: tabular-nums;
 }
 
 .msg.assistant th,
-.msg.assistant td,
-.staged-table th,
-.staged-table td {
+.msg.assistant td {
   border: 1px solid var(--border);
   padding: 3px 6px;
   text-align: left;
-}
-
-.msg.assistant th,
-.staged-table th {
-  border-bottom-color: var(--border-load);
-  color: var(--muted);
-  font-weight: 500;
 }
 
 .msg.assistant code {
@@ -677,13 +651,26 @@ input[type='checkbox'] {
   font-size: 12.5px;
 }
 
-.msg.assistant pre {
-  overflow-x: auto;
-}
-
 .msg.assistant a {
   color: var(--accent-secondary);
 }
+
+.notice {
+  font-size: 13px;
+  color: var(--muted);
+  padding-left: 12px;
+}
+
+.error {
+  color: var(--error);
+  font-size: 13px;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--error) 35%, transparent);
+  border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--error) 8%, transparent);
+}
+
+/* ---------------------------------------------------------------- activity */
 
 .activity {
   display: flex;
@@ -735,8 +722,7 @@ input[type='checkbox'] {
   color: var(--fg);
 }
 
-.activity.done ol,
-.activity.done ul {
+.activity.done ol {
   margin: 4px 0 0;
   padding-left: 22px;
 }
@@ -744,6 +730,34 @@ input[type='checkbox'] {
 .activity.done li {
   margin: 2px 0;
 }
+
+.warn {
+  color: var(--warn);
+}
+
+.sources {
+  font-size: var(--fs-meta);
+  color: var(--muted);
+  padding-left: 22px;
+}
+
+.sources summary {
+  cursor: pointer;
+}
+
+.sources ul {
+  margin: 4px 0 0;
+  padding-left: 16px;
+  display: grid;
+  gap: 3px;
+}
+
+.sources a {
+  color: var(--accent-secondary);
+  overflow-wrap: anywhere;
+}
+
+/* ---------------------------------------------------------------- cards */
 
 .card {
   display: flex;
@@ -756,80 +770,25 @@ input[type='checkbox'] {
   box-shadow: var(--shadow);
 }
 
-.card.approval {
-  border-color: var(--running-border);
+.card.answered {
+  box-shadow: none;
+  padding: 8px 12px;
+  background: none;
 }
 
-.card header {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  align-items: flex-start;
-}
-
-.tag {
-  color: var(--muted);
-}
-
-.tag.external {
-  color: var(--role-tool);
+.card .question {
+  font-weight: 500;
 }
 
 .card footer {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--sp-2);
   margin-top: var(--sp-1);
 }
 
-.changes {
-  margin: 0;
-  display: grid;
-  gap: 4px;
-}
-
-.changes div {
-  display: grid;
-  grid-template-columns: minmax(80px, 35%) 1fr;
-  gap: var(--sp-2);
-}
-
-.changes dt {
-  color: var(--muted);
-}
-
-.changes dd {
-  margin: 0;
-  overflow-wrap: anywhere;
-}
-
-s {
-  color: var(--faint);
-}
-
-.batch,
-.steps {
-  margin: 0;
-  padding-left: 20px;
-  display: grid;
-  gap: 4px;
-}
-
-.batch {
-  list-style: none;
-  padding: 0;
-  max-height: 240px;
-  overflow: auto;
-}
-
-.batch label,
-.options label {
-  display: flex;
-  gap: var(--sp-2);
-  align-items: flex-start;
-}
-
-.batch small {
-  display: block;
+.tag {
+  align-self: flex-start;
   color: var(--muted);
 }
 
@@ -844,36 +803,76 @@ s {
   font-weight: 400;
 }
 
-.card textarea {
-  width: 100%;
-  resize: vertical;
+.other {
+  display: flex;
+  gap: 6px;
 }
 
-.warn {
-  color: var(--warn);
+.other input {
+  flex: 1;
 }
 
 .outcome {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   font-size: var(--fs-meta);
   color: var(--muted);
 }
 
-.outcome.approved {
-  color: var(--accent);
+.outcome.approved,
+.site-card.approved .outcome {
+  color: var(--accent-secondary);
 }
 
-.error {
-  color: var(--error);
-  font-size: 13px;
-  padding: 0 12px;
+.site-card.declined .outcome,
+.site-card.denied .outcome {
+  color: var(--muted);
 }
 
-.log .error {
-  padding: 0;
+/* A site the assistant found and wants to open: the host is the thing to read. */
+.site-card:not(.answered) {
+  border-color: var(--turn-border);
+  background: linear-gradient(var(--turn-soft), var(--turn-soft)), var(--bg-card);
 }
+
+.site-card .tag {
+  color: var(--turn);
+}
+
+.site-host {
+  font-family: var(--mono);
+  font-size: 15px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+  padding: 6px 8px;
+  background: var(--bg);
+  border: 1px solid var(--border-load);
+  border-radius: var(--r-md);
+}
+
+/* «Te toca a ti»: the person does the step on the page, then comes back. */
+.done-bar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: 12px;
+  border: 1px solid var(--turn-border);
+  border-left: 4px solid var(--turn);
+  border-radius: var(--r-md);
+  background: var(--turn-soft);
+}
+
+.done-bar strong {
+  color: var(--turn);
+}
+
+.done-bar button {
+  align-self: flex-start;
+  padding: 9px 18px;
+}
+
+/* ---------------------------------------------------------------- composer */
 
 .composer {
   display: flex;
@@ -891,17 +890,20 @@ s {
   background: var(--bg);
 }
 
+/* ---------------------------------------------------------------- motion */
+
 @media (prefers-reduced-motion: no-preference) {
-  /* The sparkle in the mark turns a quarter, shrinking and growing back, rests, and goes again;
-     the label fades in when the action changes. */
+  /* The sparkle in the mark turns a quarter, shrinking and growing back, rests, and goes again. */
   .activity.live .mark-spark {
     transform-box: fill-box;
     transform-origin: center;
     animation: spark-turn 2.2s cubic-bezier(0.65, 0, 0.35, 1) infinite;
   }
 
-  .activity.live .activity-label {
-    animation: label-in 0.22s ease-out;
+  .activity.live .activity-label,
+  .card:not(.answered),
+  .done-bar {
+    animation: rise-in 0.22s ease-out;
   }
 }
 
@@ -924,7 +926,7 @@ s {
   }
 }
 
-@keyframes label-in {
+@keyframes rise-in {
   from {
     opacity: 0;
     transform: translateY(3px);
@@ -935,80 +937,4 @@ s {
   50% {
     opacity: 0.55;
   }
-}
-
-/* The record the tab seems to show, above the conversation. */
-.card.entity {
-  margin: var(--sp-2) 12px 0;
-  padding: 10px 12px;
-  box-shadow: none;
-}
-
-.card.entity header {
-  position: relative;
-  gap: 2px;
-  padding-right: 28px;
-}
-
-.card.entity h3 {
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.card.entity footer,
-.card.staged footer {
-  flex-wrap: wrap;
-}
-
-.entity-close {
-  position: absolute;
-  top: -4px;
-  right: -6px;
-}
-
-.settings div.stack {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-1);
-}
-
-.settings .row {
-  display: flex;
-  gap: var(--sp-2);
-}
-
-.settings .stack p {
-  margin: 0;
-}
-
-/* Captures use the same table and card styles as conversation results. */
-.card.staged {
-  min-width: 0;
-}
-
-.staged-table {
-  max-height: 260px;
-  overflow: auto;
-}
-
-.staged-table table {
-  width: 100%;
-}
-
-.staged-table th {
-  position: sticky;
-  top: 0;
-  background: var(--bg-card);
-}
-
-.staged-table th,
-.staged-table td {
-  min-width: 6ch;
-  overflow-wrap: break-word;
-}
-
-.card.staged .outcome.declined {
-  color: var(--error);
 }

@@ -1,6 +1,5 @@
 import { RAW_PLUGINS } from '../../plugins/index'
 import { fold, isOfficialHost } from '../policy'
-import type { PolicyContext } from '../policy'
 import { checkPlugin } from './schema'
 import type { Procedure, SitePlugin } from './schema'
 
@@ -45,15 +44,6 @@ export function pluginForUrl(url: string | undefined, plugins: SitePlugin[] = PL
     }
   }
   return best?.plugin
-}
-
-/** The policy context for a page: all official hosts, plus the names the page's site map reserves for the person. */
-export function policyFor(url: string | undefined, extraUserOnly: string[] = [], plugins: SitePlugin[] = PLUGINS): PolicyContext {
-  const plugin = pluginForUrl(url, plugins)
-  const userOnly = new Set(extraUserOnly)
-  for (const name of plugin?.user_only ?? []) userOnly.add(name)
-  for (const proc of plugin?.procedures ?? []) for (const step of proc.steps) for (const name of step.user_only ?? []) userOnly.add(name)
-  return { officialHosts: officialHosts(plugins), userOnly: [...userOnly] }
 }
 
 export type ProcedureHit = { plugin: SitePlugin; procedure: Procedure; score: number }

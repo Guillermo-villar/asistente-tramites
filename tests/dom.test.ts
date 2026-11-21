@@ -1,32 +1,60 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it } from 'vitest'
-import { Registry, act, describeSteps, readOutline, readTable } from '../src/page/dom'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { Registry, guidedClick, readOutline, readTable, redact } from '../src/page/dom'
+import { clearGuide, guideShown, showGuide } from '../src/page/guide'
+import type { PolicyContext } from '../src/policy'
+
+const CTX: PolicyContext = { officialHosts: ['citapreviadnie.es', 'casa47.es'], userOnly: ['Reservar'] }
 
 const PAGE = `
-  <h1>Job Requisition R-1042</h1>
-  <div style="display:none">secret banner</div>
-  <script>var x = 'never shown'</script>
-  <form>
-    <label for="title">Job title</label><input id="title" value="Store Manager" required />
-    <label>Password <input type="password" id="pw" value="hunter2" /></label>
-    <label for="country">Country</label>
-    <select id="country"><option value="es">Spain</option><option value="pt">Portugal</option></select>
-    <label><input type="checkbox" id="remote" /> Remote</label>
-    <div role="button" data-automation-id="saveButton">Save</div>
-    <a href="/candidates">Candidates</a>
+  <h1>Cita previa DNI</h1>
+  <div style="display:none">texto oculto</div>
+  <script>var x = 'nunca'</script>
+  <p>Titular: 12345678Z · NIE X1234567L · IBAN ES91 2100 0418 4502 0005 1332 · NUSS 28/12345678/90</p>
+  <p>Contacto: ana.garcia@example.com, móvil 612 345 678. Información: 060 o 900 123 456.</p>
+  <nav>
+    <a id="ayuda" href="https://www.citapreviadnie.es/citaPreviaDni/ayuda.jsp">Ayuda</a>
+    <a id="fuera" href="https://www.example.com/gestoria">Gestoría que te lo hace</a>
+    <button id="menu" aria-expanded="false" aria-controls="m1">Menú</button>
+  </nav>
+  <form action="/reservar">
+    <label for="dni">Número de DNI</label><input id="dni" value="12345678Z" required />
+    <label for="fecha">Fecha de validez</label><input id="fecha" value="" />
+    <label for="prov">Provincia</label>
+    <select id="prov"><option value="">Elige</option><option value="m" selected>Madrid</option></select>
+    <label><input type="checkbox" id="acepto" checked /> Acepto las condiciones</label>
+    <button id="tipo" type="button">Cambiar tipo de documento</button>
+    <a id="dentro" href="https://www.citapreviadnie.es/citaPreviaDni/oficinas.jsp">Ver oficinas</a>
+    <button id="enviar">Reservar</button>
   </form>
-  <table aria-label="Candidates">
-    <tr><th>Name</th><th>Stage</th></tr>
-    <tr><td><a href="/c/1">Ana García</a></td><td>Interview</td></tr>
-    <tr><td>Luis Pérez</td><td>Offer</td></tr>
+  <button id="pagar">Pagar tasa</button>
+  <table aria-label="Oficinas">
+    <tr><th>Oficina</th><th>Teléfono</th></tr>
+    <tr><td>Centro</td><td>612 000 111</td></tr>
   </table>
 `
 
-function refOf(outline: string, text: string): string {
-  const match = new RegExp(`\\[([et]\\d+)\\] (?:[a-z ]+ ")?${text}`).exec(outline)
-  if (!match?.[1]) throw new Error(`no ref for ${text} in:\n${outline}`)
+function refOf(outline: string, name: string): string {
+  const match = new RegExp(`\\[([et]\\d+)\\] [a-z ]+ "${name}`).exec(outline)
+  if (!match?.[1]) throw new Error(`no ref for ${name} in:\n${outline}`)
   return match[1]
 }
+
+describe('redact', () => {
+  it('masks Spanish identifiers, e-mails and mobile numbers, and keeps public help lines', () => {
+    const text = redact('DNI 12345678-Z, NIE Y-1234567-X, CIF B12345678, IBAN ES9121000418450200051332, NUSS 281234567890, a@b.es, +34 612 345 678, 060, 900 123 456')
+    expect(text).not.toMatch(/12345678|1234567|ES91|281234567890|a@b\.es|612/)
+    expect(text).toContain('[DNI oculto]')
+    expect(text).toContain('[NIE oculto]')
+    expect(text).toContain('[CIF oculto]')
+    expect(text).toContain('[IBAN oculto]')
+    expect(text).toContain('[NUSS oculto]')
+    expect(text).toContain('[email oculto]')
+    expect(text).toContain('[teléfono oculto]')
+    expect(text).toContain('060')
+    expect(text).toContain('900 123 456')
+  })
+})
 
 describe('page outline', () => {
   let registry: Registry
@@ -35,147 +63,114 @@ describe('page outline', () => {
     registry = new Registry()
   })
 
-  it('shows headings, labelled controls with values, and tables, and leaves out hidden content', () => {
-    const { outline } = readOutline(document, registry)
-    expect(outline).toContain('# Job Requisition R-1042')
-    expect(outline).toMatch(/\[e\d+\] textbox "Job title" = "Store Manager" \(required\)/)
-    expect(outline).toMatch(/\[e\d+\] select "Country" = "Spain"/)
-    expect(outline).toMatch(/\[e\d+\] button "Save"/)
-    expect(outline).toMatch(/\[t\d+\] table "Candidates" \(3 rows\)/)
-    expect(outline).toMatch(/\[e\d+\] link "Ana García" → \/c\/1 \| Interview/)
-    expect(outline).not.toContain('secret banner')
-    expect(outline).not.toContain('never shown')
+  it('never contains what the person typed or chose, only the field state', () => {
+    const { outline } = readOutline(document, registry, CTX)
+    expect(outline).toMatch(/textbox "Número de DNI" \(rellenado, obligatorio\)/)
+    expect(outline).toMatch(/textbox "Fecha de validez" \(vacío\)/)
+    expect(outline).toMatch(/select "Provincia" \(elegido\)/)
+    expect(outline).toMatch(/checkbox "Acepto las condiciones" \(marcado\)/)
+    expect(outline).not.toContain('Madrid')
+    expect(outline).not.toContain('12345678')
   })
 
-  it('never exposes a password value', () => {
-    const { outline } = readOutline(document, registry)
-    expect(outline).not.toContain('hunter2')
-    expect(outline).toContain('(hidden)')
+  it('masks personal data in the page text and tables, and leaves out hidden content', () => {
+    const { outline } = readOutline(document, registry, CTX)
+    for (const secret of ['12345678Z', 'X1234567L', 'ES91', '28/12345678/90', 'ana.garcia', '612 345 678', '612 000 111']) expect(outline).not.toContain(secret)
+    expect(outline).toContain('[DNI oculto]')
+    expect(outline).toContain('# Cita previa DNI')
+    expect(outline).not.toContain('texto oculto')
+    expect(outline).not.toContain('nunca')
+    const table = readTable(registry, refOf(outline, 'Oficinas'))
+    expect(JSON.stringify(table)).not.toContain('612 000 111')
   })
 
-  it('keeps a ref stable across reads and narrows by query', () => {
-    const first = refOf(readOutline(document, registry).outline, 'Job title')
-    const narrowed = readOutline(document, registry, { query: 'job title' }).outline
-    expect(refOf(narrowed, 'Job title')).toBe(first)
-    expect(narrowed).not.toContain('Luis')
+  it('tags every control with its class', () => {
+    const { outline, classes } = readOutline(document, registry, CTX)
+    expect(classes[refOf(outline, 'Ayuda')]).toBe('nav')
+    expect(classes[refOf(outline, 'Menú')]).toBe('nav')
+    expect(classes[refOf(outline, 'Gestoría')]).toBe('external')
+    expect(classes[refOf(outline, 'Número de DNI')]).toBe('field')
+    expect(classes[refOf(outline, 'Provincia')]).toBe('field')
+    expect(classes[refOf(outline, 'Reservar')]).toBe('action')
+    expect(classes[refOf(outline, 'Cambiar tipo')]).toBe('action')
+    expect(classes[refOf(outline, 'Pagar tasa')]).toBe('action')
+    expect(outline).toMatch(/link "Ayuda" → \S*\/citaPreviaDni\/ayuda\.jsp \{nav\}/)
+    expect(outline).toContain('móvil [teléfono oculto]')
+    expect(outline).toMatch(/"Reservar" \{acción: la pulsa la persona\}/)
   })
 
-  it('reads content inside a clickable card, content marked aria-hidden, and image alt text', () => {
-    document.body.innerHTML = `
-      <a href="/c/1"><h3>Ana García</h3><p>Store Manager, Madrid. Applied 3 days ago with a referral from Luis.</p><button>Shortlist</button></a>
-      <div aria-hidden="true">Offer accepted on 12 May</div>
-      <img alt="Org chart for Retail Iberia" src="x.png" />
-      <table role="presentation"><tr><td>Layout cell text</td></tr></table>`
-    const { outline } = readOutline(document, registry)
-    expect(outline).toContain('Applied 3 days ago with a referral from Luis.')
-    expect(outline).toMatch(/\[e\d+\] button "Shortlist"/)
-    expect(outline).toContain('Offer accepted on 12 May')
-    expect(outline).toContain('(image: Org chart for Retail Iberia)')
-    expect(outline).toContain('Layout cell text')
-    expect(outline).not.toContain('table (')
-  })
-
-  it('says when a query matches nothing instead of returning an empty page', () => {
-    expect(readOutline(document, registry, { query: 'no such words' })).toMatchObject({ outline: '', matched: false })
-  })
-
-  it('reads a table as rows', () => {
-    const ref = refOf(readOutline(document, registry).outline, 'table')
-    expect(readTable(registry, ref)).toMatchObject({
-      columns: ['Name', 'Stage'],
-      rows: [
-        ['Ana García', 'Interview'],
-        ['Luis Pérez', 'Offer'],
-      ],
-      total_rows: 2,
-    })
+  it('keeps refs stable across reads and filters by query without accents', () => {
+    const first = refOf(readOutline(document, registry, CTX).outline, 'Número de DNI')
+    const narrowed = readOutline(document, registry, CTX, { query: 'numero de dni' }).outline
+    expect(refOf(narrowed, 'Número de DNI')).toBe(first)
+    expect(narrowed).not.toContain('Oficinas')
   })
 })
 
-describe('grids drawn with divs', () => {
-  it('prints each row on one line and keeps a role="none" button a button', () => {
-    document.body.innerHTML = `
-      <button role="none"><i class="bi-chevron-left"></i></button>
-      <div role="table">
-        <div role="row"><div role="columnheader"><div>Vacancy</div></div><div role="columnheader"><div>Candidate</div></div></div>
-        <div role="row"><div role="cell"><div>QA Lead</div></div><div role="cell"><div>John Doe</div></div></div>
-      </div>
-      <p>After</p>`
-    const { outline } = readOutline(document, new Registry())
-    expect(outline).toContain('  Vacancy | Candidate\n  QA Lead | John Doe\nAfter')
-    expect(outline).toMatch(/\[e\d+\] button "Arrow left \(icon\)"/)
-  })
-})
-
-describe('page actions', () => {
+describe('guided click (page side)', () => {
   let registry: Registry
   let outline: string
-  const noWait = () => Promise.resolve()
   beforeEach(() => {
     document.body.innerHTML = PAGE
     registry = new Registry()
-    outline = readOutline(document, registry).outline
+    outline = readOutline(document, registry, CTX).outline
   })
 
-  it('fills, selects, ticks and clicks, firing the events frameworks listen for', async () => {
-    const title = document.getElementById('title') as HTMLInputElement
-    const events: string[] = []
-    title.addEventListener('input', () => events.push('input'))
-    title.addEventListener('change', () => events.push('change'))
-    let saved = 0
-    document.querySelector('[role="button"]')?.addEventListener('click', () => (saved += 1))
-
-    const results = await act(
-      registry,
-      [
-        { action: 'fill', ref: refOf(outline, 'Job title'), value: 'Area Manager' },
-        { action: 'select', ref: refOf(outline, 'Country'), value: 'Portugal' },
-        { action: 'check', ref: refOf(outline, 'Remote') },
-        { action: 'click', ref: refOf(outline, 'Save') },
-      ],
-      noWait,
-    )
-
-    expect(results.filter((r) => !r.ok)).toEqual([])
-    expect(title.value).toBe('Area Manager')
-    expect(events).toEqual(['input', 'change'])
-    expect((document.getElementById('country') as HTMLSelectElement).value).toBe('pt')
-    expect((document.getElementById('remote') as HTMLInputElement).checked).toBe(true)
-    expect(saved).toBe(1)
+  it('presses a control that only moves around the site', () => {
+    const clicked = vi.fn()
+    document.getElementById('menu')?.addEventListener('click', clicked)
+    expect(guidedClick(registry, refOf(outline, 'Menú'), CTX)).toEqual({ ok: true, name: 'Menú' })
+    expect(clicked).toHaveBeenCalledOnce()
   })
 
-  it('refuses password fields and stops before later steps', async () => {
-    let saved = 0
-    document.querySelector('[role="button"]')?.addEventListener('click', () => (saved += 1))
-    const results = await act(
-      registry,
-      [
-        { action: 'fill', ref: refOf(outline, 'Password'), value: 'x' },
-        { action: 'click', ref: refOf(outline, 'Save') },
-      ],
-      noWait,
-    )
-    expect(results).toHaveLength(1)
-    expect(results[0]?.ok).toBe(false)
-    expect((document.getElementById('pw') as HTMLInputElement).value).toBe('hunter2')
-    expect(saved).toBe(0)
+  it.each([
+    ['Número de DNI', 'field'],
+    ['Acepto las condiciones', 'field'],
+    ['Reservar', 'action'],
+    ['Cambiar tipo', 'action'],
+    ['Pagar tasa', 'action'],
+    ['Gestoría', 'external'],
+  ])('refuses %s (%s) and never dispatches a click', (name, cls) => {
+    const ref = refOf(outline, name)
+    const el = registry.get(ref) as HTMLElement
+    const clicked = vi.fn()
+    el.addEventListener('click', clicked)
+    const result = guidedClick(registry, ref, CTX)
+    expect(result.ok).toBe(false)
+    expect(result).toMatchObject({ refused: cls })
+    expect(clicked).not.toHaveBeenCalled()
   })
 
-  it('fails a step whose element left the page', async () => {
-    const ref = refOf(outline, 'Save')
-    document.querySelector('[role="button"]')?.remove()
-    const [result] = await act(registry, [{ action: 'click', ref }], noWait)
-    expect(result?.ok).toBe(false)
+  it('checks the live element, so a link turned into a submit button after the read is refused', () => {
+    const ref = refOf(outline, 'Ayuda')
+    const link = registry.get(ref) as HTMLElement
+    link.textContent = 'Enviar solicitud'
+    expect(guidedClick(registry, ref, CTX)).toMatchObject({ ok: false, refused: 'action' })
   })
 
-  it('describes steps with the page’s own labels, not the model’s', () => {
-    const described = describeSteps(registry, [
-      { action: 'fill', ref: refOf(outline, 'Job title'), value: 'Area Manager' },
-      { action: 'click', ref: refOf(outline, 'Save') },
-      { action: 'click', ref: 'e999' },
-    ])
-    expect(described[0]?.text).toBe('Fill textbox "Job title" with "Area Manager"')
-    expect(described[1]?.text).toBe('Click button "Save"')
-    expect(described[2]?.error).toBeTruthy()
+  it('refuses names the site map reserves for the person', () => {
+    document.body.insertAdjacentHTML('beforeend', '<a id="x" href="https://www.casa47.es/solicitud">Reservar ahora</a>')
+    const fresh = readOutline(document, registry, CTX).outline
+    expect(guidedClick(registry, refOf(fresh, 'Reservar ahora'), CTX)).toMatchObject({ ok: false, refused: 'action' })
+  })
+
+  it('reports a ref that is gone', () => {
+    expect(guidedClick(registry, 'e999', CTX)).toMatchObject({ ok: false })
+  })
+})
+
+describe('guide highlight', () => {
+  it('shows one highlight at a time, outside the outline, and clears it', () => {
+    document.body.innerHTML = PAGE
+    const field = document.getElementById('dni') as Element
+    showGuide(field, 'Escribe aquí tu número de DNI')
+    showGuide(field, 'Otra instrucción')
+    expect(document.querySelectorAll('#asistente-tramites-guide')).toHaveLength(1)
+    expect(guideShown()).toBe(true)
+    const { outline } = readOutline(document, new Registry(), CTX)
+    expect(outline).not.toContain('Otra instrucción')
+    clearGuide()
+    expect(document.getElementById('asistente-tramites-guide')).toBeNull()
+    expect(guideShown()).toBe(false)
   })
 })

@@ -1,5 +1,5 @@
 // The highlight the person sees when the assistant points at something only they may do: a ring around
-// the control and a callout with one short instruction ("Escribe aquí tu NIF"). It stays until the next
+// the control and a callout with one short instruction ("Escribe aquí tu número de DNI"). It stays until the next
 // highlight, an explicit clear, or the page going away. Like the cursor it lives in a closed shadow root
 // outside <body>, so the outline never reads it and the page's CSS never styles it.
 

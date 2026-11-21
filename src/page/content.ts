@@ -2,12 +2,12 @@ import { clearCursor, pointAt } from './cursor'
 import { Registry, guidedClick, readOutline, readTable } from './dom'
 import { clearGuide, showGuide } from './guide'
 import type { PageRequest } from './messages'
-import { policyFor } from '../plugins/registry'
+import { policyFor } from '../trust'
 import { isOfficialUrl } from '../policy'
 
-// The page script. The panel injects it into official pages only, and it checks again: on a page that
-// is not one of the official sites it refuses everything. The policy it enforces comes from the site maps
-// bundled into this script, not from the panel's message, so the panel cannot widen it.
+// The page script. The panel injects it into trusted pages only, and it checks again: on a page that is
+// not trusted it refuses everything. The built-in trusted hosts and the control rules are bundled into this
+// script; the panel only adds the hosts the person approved in this session.
 
 declare global {
   // eslint-disable-next-line no-var
@@ -15,11 +15,11 @@ declare global {
 }
 
 async function handle(request: PageRequest, registry: Registry): Promise<unknown> {
-  const ctx = policyFor(location.href, request.op === 'click' ? request.userOnly : [])
+  const ctx = policyFor(location.href, { approved: request.op === 'clear' ? [] : request.approved ?? [] })
   // The top frame decides: an embedded frame from another host is still read, as the person sees it.
   const pageUrl = window.top === window ? location.href : document.referrer || location.href
   if (request.op !== 'clear' && !isOfficialUrl(location.href, ctx.officialHosts) && !isOfficialUrl(pageUrl, ctx.officialHosts)) {
-    return { error: 'Esta página no es una de las sedes oficiales que conoce la extensión.' }
+    return { error: 'Esta página no es una web oficial de confianza para la extensión.' }
   }
   switch (request.op) {
     case 'outline':

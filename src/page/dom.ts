@@ -53,7 +53,7 @@ const REDACTIONS: [RegExp, string][] = [
   [/\b[ABCDEFGHJNPQRSUVW][\s-]?\d{7}[\s-]?[0-9A-J]\b/g, '[CIF oculto]'],
   [/\b\d{8}[\s-]?[A-Z]\b/gi, '[DNI oculto]'],
   // Personal mobile numbers (6xx, 7xx). Landlines and public help lines (8xx, 9xx, 060) stay readable.
-  [/(?:\+34|0034)?[\s-]?\b[67]\d{2}[\s-]?\d{3}[\s-]?\d{3}\b/g, '[teléfono oculto]'],
+  [/(?:(?:\+34|0034)[\s-]?)?\b[67]\d{2}[\s-]?\d{3}[\s-]?\d{3}\b/g, '[teléfono oculto]'],
 ]
 
 /** Replaces Spanish personal identifiers, e-mails and mobile numbers in a piece of page text. */

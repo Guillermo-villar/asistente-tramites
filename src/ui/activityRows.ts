@@ -16,6 +16,7 @@ const TOOL_LABELS: Record<string, string> = {
   click: 'Moviéndome por la sede',
   point_to: 'Señalando en la página',
   ask_user: 'Preguntándote',
+  web_search: 'Buscando la web oficial en internet',
 }
 
 export const toolLabel = (name: string): string => TOOL_LABELS[name] ?? name
@@ -25,6 +26,7 @@ export function labelFor(name: string, input: unknown): string {
   const data = (input ?? {}) as Record<string, unknown>
   if (name === 'click' && typeof data.reason === 'string') return data.reason
   if (name === 'point_to' && typeof data.instruction === 'string') return `Señalado: ${data.instruction}`
+  if (name === 'web_search' && typeof data.query === 'string' && data.query) return `Buscando en internet: «${data.query}»`
   if (name === 'open_page' && typeof data.url === 'string') {
     try {
       return `Abriendo ${new URL(data.url).hostname}`

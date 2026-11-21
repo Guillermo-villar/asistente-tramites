@@ -1,0 +1,617 @@
+import Anthropic from '@anthropic-ai/sdk'
+import type { BetaMessageParam } from '@anthropic-ai/sdk/resources/beta/messages/messages'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { FormEvent, KeyboardEvent } from 'react'
+import { createClient, runTurn } from '../agent/agent'
+import type { TurnResult } from '../agent/agent'
+import { activeTab, chromeBrowser, clearHighlight } from '../agent/chromeBrowser'
+import { ToolState } from '../agent/tools'
+import type { Tab } from '../agent/tools'
+import { trackUserWindow, windowMode } from '../agent/userWindow'
+import { pluginForUrl } from '../plugins/registry'
+import { hostOf, trustOf } from '../trust'
+import { Activity, LiveStatus } from './Activity'
+import { BrandLockup, BrandMark } from './Brand'
+import { IconCheck, IconClose, IconGlobe, IconSliders } from './Icons'
+import { labelFor, toRows } from './activityRows'
+import { newId } from './conversation'
+import type { Item } from './conversation'
+import { BUILD, downloadLog, record, setTranscriptSource } from './debugLog'
+import { renderMarkdown } from './markdown'
+import { DEFAULTS, EFFORTS, MODELS, THEMES, loadApiKey, loadSettings, saveApiKey, saveSettings } from './settings'
+import type { Settings } from './settings'
+import { dropSiteAccess, loadApprovedHosts, requestSiteAccess, saveApprovedHosts } from './sites'
+
+const STARTERS: { label: string; hint: string }[] = [
+  { label: 'Quiero renovar el DNI', hint: 'Cita previa · Policía Nacional' },
+  { label: 'Pedir cita para el pasaporte', hint: 'Cita previa · Policía Nacional' },
+  { label: '¿Qué tengo que llevar a la cita del DNI?', hint: 'Requisitos' },
+  { label: 'Quiero pedir una vivienda de alquiler asequible', hint: 'Casa 47' },
+  { label: 'Empadronarme en mi ayuntamiento', hint: 'El asistente busca la web oficial' },
+]
+
+const DONE_MESSAGE = 'Hecho, sigue.'
+
+function errorText(err: unknown): string {
+  if (err instanceof Anthropic.AuthenticationError) return 'La clave de API no es válida. Revísala en Ajustes.'
+  if (err instanceof Anthropic.PermissionDeniedError) return 'Tu clave de API no tiene permiso para usar este modelo. Prueba otro modelo en Ajustes.'
+  if (err instanceof Anthropic.RateLimitError) return 'Has llegado al límite de uso de tu clave. Espera un momento y vuelve a intentarlo.'
+  if (err instanceof Anthropic.APIConnectionError) return 'No hay conexión con el servicio. Comprueba tu conexión a internet.'
+  if (err instanceof Anthropic.APIError) return `El servicio devolvió un error (${err.status ?? 'sin código'}). Vuelve a intentarlo.`
+  return err instanceof Error ? err.message : String(err)
+}
+
+function stopNotice(result: TurnResult): string | null {
+  switch (result.stop) {
+    case 'refusal':
+      return 'El modelo no puede ayudar con esta petición. Prueba a explicarla de otra forma.'
+    case 'max_tokens':
+      return 'La respuesta era demasiado larga y se cortó. Pídele que siga.'
+    case 'too_many_steps':
+      return 'El asistente ha dado muchos pasos seguidos y se ha parado. Dile cómo quieres seguir.'
+    default:
+      return null
+  }
+}
+
+function useActiveTab(): Tab | null {
+  const [tab, setTab] = useState<Tab | null>(null)
+  useEffect(() => {
+    const refresh = () => void activeTab().then(setTab).catch(() => setTab(null))
+    refresh()
+    const onUpdated = (_id: number, info: chrome.tabs.OnUpdatedInfo) => {
+      if (info.url !== undefined || info.status === 'complete') refresh()
+    }
+    chrome.tabs.onActivated.addListener(refresh)
+    chrome.tabs.onUpdated.addListener(onUpdated)
+    chrome.windows.onFocusChanged.addListener(refresh)
+    return () => {
+      chrome.tabs.onActivated.removeListener(refresh)
+      chrome.tabs.onUpdated.removeListener(onUpdated)
+      chrome.windows.onFocusChanged.removeListener(refresh)
+    }
+  }, [])
+  return tab
+}
+
+const TRUST_CHIP = {
+  government: { label: 'Administración', title: 'Web de la Administración pública (*.gob.es o una comunidad autónoma)' },
+  approved: { label: 'Aprobada por ti', title: 'La aprobaste en esta sesión después de que el asistente la encontrara' },
+} as const
+
+function SiteBar({ tab, approved }: { tab: Tab | null; approved: string[] }) {
+  const plugin = pluginForUrl(tab?.url)
+  const trust = trustOf(tab?.url, approved)
+  const host = hostOf(tab?.url) ?? ''
+  return (
+    <div className={`site trust-${trust}`} aria-live="polite">
+      <IconGlobe size={15} />
+      {trust === 'mapped' && plugin ? (
+        <>
+          <span className="host">{plugin.name}</span>
+          <span className={`chip ${plugin.status}`} title={plugin.status === 'verified' ? 'Mapa comprobado por una persona' : 'Mapa en borrador: nadie lo ha recorrido entero todavía'}>
+            {plugin.status === 'verified' ? 'Con mapa' : 'Mapa en borrador'}
+          </span>
+        </>
+      ) : trust === 'government' || trust === 'approved' ? (
+        <>
+          <span className="host">{host}</span>
+          <span className={`chip ${trust}`} title={TRUST_CHIP[trust].title}>
+            {TRUST_CHIP[trust].label}
+          </span>
+        </>
+      ) : (
+        <span className="host muted">{tab ? `${host || 'Esta página'}: el asistente no puede leerla` : 'Sin pestaña'}</span>
+      )}
+    </div>
+  )
+}
+
+function Onboarding({ onSave }: { onSave: (key: string) => void }) {
+  const [key, setKey] = useState('')
+  const submit = (event: FormEvent) => {
+    event.preventDefault()
+    if (key.trim()) onSave(key.trim())
+  }
+  return (
+    <form className="onboarding" onSubmit={submit}>
+      <div className="hero">
+        <BrandMark size={44} className="hero-mark" />
+        <h2>Te acompaño en tus trámites</h2>
+        <p className="muted">
+          Busco la web oficial, te llevo a la página correcta y te explico cada paso. Lo que hay que rellenar o pulsar para enviar, te lo señalo y lo haces tú.
+        </p>
+      </div>
+      <ol className="promises">
+        <li>
+          <strong>Nunca escribo por ti.</strong> Ni tu DNI, ni contraseñas, ni ningún dato.
+        </li>
+        <li>
+          <strong>Nunca envío, firmo, pago ni confirmo.</strong> Esos botones los pulsas tú.
+        </li>
+        <li>
+          <strong>Solo en webs oficiales.</strong> Si encuentro una que no conozco, te pido permiso antes de abrirla.
+        </li>
+      </ol>
+      <label className="stack">
+        <span>Tu clave de API de Anthropic</span>
+        <input type="password" autoComplete="off" spellCheck={false} placeholder="sk-ant-…" value={key} onChange={(e) => setKey(e.target.value)} />
+      </label>
+      <button className="primary wide" type="submit" disabled={!key.trim()}>
+        Guardar y empezar
+      </button>
+      <p className="privacy small muted">
+        <strong>Privacidad.</strong> La clave se guarda solo en este navegador. El asistente envía al modelo el texto de las páginas oficiales que lee, nunca lo que escribes
+        en los formularios: solo sabe si un campo está «rellenado» o «vacío». Los DNI, NIE, IBAN, números de la Seguridad Social, correos y móviles de la página se ocultan
+        antes de enviarla. Para buscar webs oficiales usa la búsqueda web de Claude con las palabras del trámite, nunca con tus datos.
+      </p>
+    </form>
+  )
+}
+
+function AskCard({ item, onAnswer }: { item: Extract<Item, { kind: 'ask' }>; onAnswer: (answer: string) => void }) {
+  const [other, setOther] = useState('')
+  if (item.answer !== undefined) {
+    return (
+      <div className="card ask answered">
+        <p className="question">{item.question}</p>
+        <p className="outcome approved">
+          <IconCheck size={14} /> {item.answer}
+        </p>
+      </div>
+    )
+  }
+  return (
+    <div className="card ask">
+      <p className="question">{item.question}</p>
+      <div className="options">
+        {item.options.map((option) => (
+          <button key={option} type="button" onClick={() => onAnswer(option)}>
+            {option}
+          </button>
+        ))}
+      </div>
+      <form
+        className="other"
+        onSubmit={(event) => {
+          event.preventDefault()
+          if (other.trim()) onAnswer(other.trim())
+        }}
+      >
+        <input value={other} onChange={(e) => setOther(e.target.value)} placeholder="Otra respuesta" aria-label="Otra respuesta" />
+        <button type="submit" disabled={!other.trim()}>
+          Responder
+        </button>
+      </form>
+    </div>
+  )
+}
+
+function SiteCard({ item, onAnswer }: { item: Extract<Item, { kind: 'site' }>; onAnswer: (approve: boolean) => void }) {
+  if (item.answer) {
+    const text = { approved: `Aprobada: ${item.host}`, declined: `No aprobada: ${item.host}`, denied: `El navegador no dio acceso a ${item.host}` }[item.answer]
+    return (
+      <div className={`card site-card answered ${item.answer}`}>
+        <p className="outcome">
+          {item.answer === 'approved' ? <IconCheck size={14} /> : <IconClose size={14} />} {text}
+        </p>
+      </div>
+    )
+  }
+  return (
+    <div className="card site-card" role="alertdialog" aria-label="Aprobar una web">
+      <span className="tag">Web nueva</span>
+      <p className="question">El asistente quiere abrir una web que no tiene en su lista:</p>
+      <p className="site-host">{item.host}</p>
+      <p className="small">{item.reason}</p>
+      <p className="small muted">
+        Ábrela solo si es la web oficial de la Administración que buscas (un ayuntamiento, una diputación, un organismo público). Si dudas, di que no. El navegador te pedirá
+        permiso para esa web.
+      </p>
+      <footer>
+        <button type="button" className="primary" onClick={() => onAnswer(true)}>
+          Es la oficial, ábrela
+        </button>
+        <button type="button" onClick={() => onAnswer(false)}>
+          No
+        </button>
+      </footer>
+    </div>
+  )
+}
+
+function Sources({ item }: { item: Extract<Item, { kind: 'sources' }> }) {
+  return (
+    <details className="sources">
+      <summary>
+        {item.sources.length === 1 ? '1 resultado de búsqueda' : `${item.sources.length} resultados de búsqueda`}
+      </summary>
+      <ul>
+        {item.sources.map((source) => (
+          <li key={source.url}>
+            <a href={source.url} target="_blank" rel="noopener noreferrer">
+              {source.title || source.url}
+            </a>
+            <span className="small muted"> {hostOf(source.url) ?? ''}</span>
+          </li>
+        ))}
+      </ul>
+    </details>
+  )
+}
+
+export function App() {
+  const [ready, setReady] = useState(false)
+  const [apiKey, setApiKey] = useState('')
+  const [settings, setSettings] = useState<Settings>(DEFAULTS)
+  const [showSettings, setShowSettings] = useState(false)
+  const [items, setItems] = useState<Item[]>([])
+  const [draft, setDraft] = useState('')
+  const [running, setRunning] = useState(false)
+  const [awaitingDone, setAwaitingDone] = useState(false)
+  const [approved, setApproved] = useState<string[]>([])
+  const approvedRef = useRef<string[]>([])
+  const history = useRef<BetaMessageParam[]>([])
+  const toolState = useRef(new ToolState())
+  const abort = useRef<AbortController | null>(null)
+  const answers = useRef(new Map<string, (answer: string) => void>())
+  const siteAnswers = useRef(new Map<string, (approved: boolean) => void>())
+  const logEnd = useRef<HTMLDivElement | null>(null)
+  const tab = useActiveTab()
+
+  const setApprovedHosts = useCallback((hosts: string[]) => {
+    approvedRef.current = hosts
+    setApproved(hosts)
+    void saveApprovedHosts(hosts)
+  }, [])
+
+  useEffect(() => {
+    if (windowMode()) trackUserWindow()
+    void Promise.all([loadSettings(), loadApiKey(), loadApprovedHosts()]).then(([loaded, key, hosts]) => {
+      setSettings(loaded)
+      setApiKey(key)
+      approvedRef.current = hosts
+      setApproved(hosts)
+      setReady(true)
+    })
+  }, [])
+
+  useEffect(() => {
+    const root = document.documentElement
+    if (settings.theme === 'system') root.removeAttribute('data-theme')
+    else root.setAttribute('data-theme', settings.theme)
+  }, [settings.theme])
+
+  useEffect(() => setTranscriptSource(() => items), [items])
+  useEffect(() => logEnd.current?.scrollIntoView({ block: 'end' }), [items, running])
+
+  const update = useCallback((next: Settings) => {
+    setSettings(next)
+    void saveSettings(next)
+  }, [])
+
+  const push = (item: Item) => setItems((prev) => [...prev, item])
+  const patch = (id: string, change: Partial<Item>) => setItems((prev) => prev.map((item) => (item.id === id ? ({ ...item, ...change } as Item) : item)))
+
+  const send = useCallback(
+    async (text: string) => {
+      const message = text.trim()
+      if (!message || running || !apiKey) return
+      if (message === DONE_MESSAGE) await clearHighlight()
+      setDraft('')
+      setAwaitingDone(false)
+      push({ kind: 'user', id: newId('user'), text: message })
+      history.current.push({ role: 'user', content: message })
+      const controller = new AbortController()
+      abort.current = controller
+      setRunning(true)
+      const runId = newId('run')
+      const assistantIds = new Map<number, string>()
+      try {
+        const result = await runTurn({
+          client: createClient(apiKey),
+          model: settings.model,
+          effort: settings.effort,
+          history: history.current,
+          state: toolState.current,
+          signal: controller.signal,
+          host: {
+            browser: chromeBrowser,
+            approvedHosts: () => approvedRef.current,
+            ask: (question, options) =>
+              new Promise<string>((resolve) => {
+                const id = newId('ask')
+                answers.current.set(id, resolve)
+                push({ kind: 'ask', id, question, options })
+                controller.signal.addEventListener('abort', () => resolve('(la persona ha detenido al asistente)'), { once: true })
+              }),
+            approveSite: (url, reason) =>
+              new Promise<boolean>((resolve) => {
+                const host = hostOf(url)
+                if (!host) return resolve(false)
+                const id = newId('site')
+                siteAnswers.current.set(id, resolve)
+                push({ kind: 'site', id, url, host, reason })
+                controller.signal.addEventListener('abort', () => resolve(false), { once: true })
+              }),
+          },
+          events: {
+            text(delta, turn) {
+              const known = assistantIds.get(turn)
+              if (known) {
+                setItems((prev) => prev.map((item) => (item.id === known && item.kind === 'assistant' ? { ...item, text: item.text + delta } : item)))
+              } else {
+                const id = `${runId}-${turn}`
+                assistantIds.set(turn, id)
+                push({ kind: 'assistant', id, text: delta })
+              }
+            },
+            toolStart(id, name, input) {
+              record('tool_start', { name, input })
+              push({ kind: 'tool', id, name, label: labelFor(name, input), status: 'running' })
+            },
+            toolEnd(id, name, outcome) {
+              record('tool_end', { name, outcome })
+              const label = name === 'web_search' && outcome.content ? labelFor(name, { query: outcome.content }) : undefined
+              patch(id, { status: outcome.isError ? 'error' : 'done', ...(label ? { label } : {}) })
+            },
+            sources(found) {
+              const unique = [...new Map(found.map((s) => [s.url, s])).values()].slice(0, 8)
+              push({ kind: 'sources', id: newId('sources'), sources: unique })
+            },
+          },
+        })
+        const notice = stopNotice(result)
+        if (notice) push({ kind: 'notice', id: newId('notice'), text: notice, tone: 'info' })
+        setAwaitingDone(result.pointed && result.stop !== 'aborted')
+      } catch (err) {
+        record('error', { message: errorText(err) })
+        push({ kind: 'notice', id: newId('notice'), text: errorText(err), tone: 'error' })
+      } finally {
+        abort.current = null
+        setRunning(false)
+        setItems((prev) =>
+          prev.map((item) => (item.kind === 'tool' && item.status === 'running' ? { ...item, status: 'error' } : item.kind === 'site' && !item.answer ? { ...item, answer: 'declined' } : item)),
+        )
+      }
+    },
+    [apiKey, running, settings.effort, settings.model],
+  )
+
+  const answer = (id: string, value: string) => {
+    patch(id, { answer: value })
+    answers.current.get(id)?.(value)
+    answers.current.delete(id)
+  }
+
+  // Runs in the click handler, so Chrome may show its permission prompt.
+  const answerSite = async (item: Extract<Item, { kind: 'site' }>, approve: boolean) => {
+    const resolve = siteAnswers.current.get(item.id)
+    siteAnswers.current.delete(item.id)
+    if (!approve) {
+      patch(item.id, { answer: 'declined' })
+      resolve?.(false)
+      return
+    }
+    const granted = await requestSiteAccess(item.host)
+    if (granted) setApprovedHosts([...approvedRef.current, item.host])
+    patch(item.id, { answer: granted ? 'approved' : 'denied' })
+    resolve?.(granted)
+  }
+
+  const forgetSite = (host: string) => {
+    setApprovedHosts(approvedRef.current.filter((h) => h !== host))
+    void dropSiteAccess(host)
+  }
+
+  const clearChat = () => {
+    abort.current?.abort()
+    history.current = []
+    toolState.current.reset()
+    setItems([])
+    setAwaitingDone(false)
+    void clearHighlight()
+  }
+
+  const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault()
+      void send(draft)
+    }
+  }
+
+  const rows = useMemo(() => toRows(items), [items])
+  const last = rows[rows.length - 1]
+  const waitingOnPerson = last?.kind === 'ask' || (last?.kind === 'site' && !last.answer)
+
+  if (!ready) return <div className="app" />
+
+  if (!apiKey) {
+    return (
+      <div className="app">
+        <header className="top">
+          <BrandLockup />
+        </header>
+        <Onboarding
+          onSave={(key) => {
+            setApiKey(key)
+            void saveApiKey(key)
+          }}
+        />
+      </div>
+    )
+  }
+
+  return (
+    <div className="app">
+      <header className="top">
+        <BrandLockup />
+        <span className="spacer" />
+        <button type="button" className="ghost icon" aria-label="Ajustes" aria-pressed={showSettings} onClick={() => setShowSettings((v) => !v)}>
+          {showSettings ? <IconClose /> : <IconSliders />}
+        </button>
+      </header>
+
+      {showSettings && (
+        <section className="settings" aria-label="Ajustes">
+          <label>
+            Modelo
+            <select value={settings.model} onChange={(e) => update({ ...settings, model: e.target.value as Settings['model'] })}>
+              {MODELS.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.label}: {m.note}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Esfuerzo
+            <select value={settings.effort} onChange={(e) => update({ ...settings, effort: e.target.value as Settings['effort'] })}>
+              {EFFORTS.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Tema
+            <select value={settings.theme} onChange={(e) => update({ ...settings, theme: e.target.value as Settings['theme'] })}>
+              {THEMES.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="stack">
+            <span>Webs aprobadas en esta sesión</span>
+            {approved.length === 0 ? (
+              <p className="small muted">Ninguna. Las webs con mapa, las *.gob.es y las de comunidades autónomas no necesitan aprobación.</p>
+            ) : (
+              <ul className="approved">
+                {approved.map((host) => (
+                  <li key={host}>
+                    <span>{host}</span>
+                    <button type="button" className="ghost" onClick={() => forgetSite(host)}>
+                      Quitar
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <div className="row">
+            <button type="button" onClick={clearChat}>
+              Borrar conversación
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setApiKey('')
+                void saveApiKey('')
+                clearChat()
+              }}
+            >
+              Cambiar clave
+            </button>
+          </div>
+          <div className="row">
+            <button type="button" className="ghost" onClick={() => downloadLog({ model: settings.model, effort: settings.effort, approved })}>
+              Descargar registro de depuración
+            </button>
+          </div>
+          <p className="small muted">
+            El registro incluye la conversación y las páginas leídas (sin valores de campos). Compártelo solo para informar de un problema. Versión {BUILD}.
+          </p>
+        </section>
+      )}
+
+      <SiteBar tab={tab} approved={approved} />
+
+      <main className="log" aria-live="polite">
+        {rows.length === 0 && (
+          <div className="empty">
+            <BrandMark size={32} className="empty-mark" />
+            <h3>¿Qué trámite quieres hacer?</h3>
+            <p className="muted">Cuéntamelo con tus palabras. Si no conozco la web, la busco y te pido permiso antes de abrirla.</p>
+            <div className="starters">
+              {STARTERS.map((starter) => (
+                <button key={starter.label} type="button" onClick={() => void send(starter.label)}>
+                  <span>{starter.label}</span>
+                  <small>{starter.hint}</small>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {rows.map((row) => {
+          switch (row.kind) {
+            case 'user':
+              return (
+                <div key={row.id} className="msg user">
+                  {row.text}
+                </div>
+              )
+            case 'assistant':
+              return <div key={row.id} className="msg assistant" dangerouslySetInnerHTML={{ __html: renderMarkdown(row.text) }} />
+            case 'activity':
+              return <Activity key={row.id} group={row} live={running && row === last} />
+            case 'ask':
+              return <AskCard key={row.id} item={row} onAnswer={(value) => answer(row.id, value)} />
+            case 'site':
+              return <SiteCard key={row.id} item={row} onAnswer={(approve) => void answerSite(row, approve)} />
+            case 'sources':
+              return <Sources key={row.id} item={row} />
+            case 'notice':
+              return (
+                <p key={row.id} className={row.tone === 'error' ? 'error' : 'notice'}>
+                  {row.text}
+                </p>
+              )
+            default:
+              return null
+          }
+        })}
+        {running && last?.kind !== 'activity' && !waitingOnPerson && <LiveStatus label="Pensando" />}
+        {awaitingDone && !running && (
+          <div className="done-bar" role="status">
+            <p>
+              <strong>Te toca a ti.</strong> Hazlo en la página resaltada y vuelve aquí.
+            </p>
+            <button type="button" className="primary" onClick={() => void send(DONE_MESSAGE)}>
+              Hecho, sigue
+            </button>
+          </div>
+        )}
+        <div ref={logEnd} />
+      </main>
+
+      <form
+        className="composer"
+        onSubmit={(event) => {
+          event.preventDefault()
+          void send(draft)
+        }}
+      >
+        <textarea
+          rows={2}
+          value={draft}
+          placeholder="Escribe qué necesitas. No pongas datos personales."
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={onKeyDown}
+          aria-label="Mensaje"
+        />
+        {running ? (
+          <button type="button" onClick={() => abort.current?.abort()}>
+            Detener
+          </button>
+        ) : (
+          <button type="submit" className="primary" disabled={!draft.trim()}>
+            Enviar
+          </button>
+        )}
+      </form>
+    </div>
+  )
+}

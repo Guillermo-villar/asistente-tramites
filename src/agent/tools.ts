@@ -4,12 +4,17 @@ import type { ClickResult, Outline, TableData } from '../page/dom'
 import type { PageRequest } from '../page/messages'
 import { REFUSAL, isOfficialUrl } from '../policy'
 import type { ControlClass } from '../policy'
-import { PLUGINS, officialHosts, pluginById, pluginForUrl, searchProcedures } from '../plugins/registry'
+import { PLUGINS, pluginById, pluginForUrl, searchProcedures } from '../plugins/registry'
 import type { SitePlugin } from '../plugins/schema'
+import { hostOf, trustOf, trustedHosts } from '../trust'
 
 // The assistant's tools. There is deliberately no tool that types, ticks, chooses, uploads or submits:
-// the only things it can do on a page are read it, open an official address, press a control that moves
+// the only things it can do on a page are read it, open a trusted address, press a control that moves
 // around the site, and point at a control for the person. Every input is validated here before it runs.
+//
+// Finding a procedure: the site maps answer first (find_procedure); for anything they do not cover the
+// model uses Claude's web search (a server tool, declared in agent.ts) and then open_page. A site that is
+// neither mapped nor a public-administration domain opens only after the person approves it.
 
 export type Tab = { id: number; url: string; title: string }
 
@@ -26,6 +31,13 @@ export type ToolHost = {
   browser: Browser
   /** Shows a question card and resolves with what the person chose or wrote. */
   ask(question: string, options: string[]): Promise<string>
+  /**
+   * Asks the person whether to trust a site the assistant found, and resolves true once they approved it
+   * (and the browser granted access). The approved host then counts as trusted for this session.
+   */
+  approveSite(url: string, reason: string): Promise<boolean>
+  /** Hosts the person approved in this session. */
+  approvedHosts(): string[]
   wait?(ms: number): Promise<void>
   plugins?: SitePlugin[]
 }
@@ -46,7 +58,7 @@ const ref = z.string().regex(/^(f\d+:)?[et]\d+$/, 'una referencia como e12 o f3:
 
 export const TOOL_INPUTS = {
   find_procedure: z.strictObject({
-    query: z.string().min(2).max(200).describe('Lo que la persona quiere hacer, con sus palabras: "vida laboral", "cita en Hacienda".'),
+    query: z.string().min(2).max(200).describe('Lo que la persona quiere hacer, con sus palabras: "renovar el DNI", "alquiler asequible".'),
   }),
   get_procedure: z.strictObject({
     plugin_id: z.string().min(1).max(60),
@@ -56,7 +68,8 @@ export const TOOL_INPUTS = {
     query: z.string().max(100).optional().describe('Opcional: solo las líneas que contengan este texto (y sus vecinas).'),
   }),
   open_page: z.strictObject({
-    url: z.string().max(500).describe('Dirección https de una sede oficial conocida.'),
+    url: z.string().max(500).describe('Dirección https de una web oficial.'),
+    reason: z.string().min(2).max(200).describe('Por qué esta es la web oficial correcta, en una frase para la persona. Se le muestra si tiene que aprobar la web.'),
   }),
   click: z.strictObject({
     ref,
@@ -64,7 +77,7 @@ export const TOOL_INPUTS = {
   }),
   point_to: z.strictObject({
     ref,
-    instruction: z.string().min(2).max(140).describe('Una instrucción corta para la persona, en segunda persona: "Escribe aquí tu NIF", "Pulsa Presentar cuando lo hayas revisado".'),
+    instruction: z.string().min(2).max(140).describe('Una instrucción corta para la persona, en segunda persona: "Escribe aquí tu número de DNI", "Pulsa Confirmar cuando lo hayas revisado".'),
   }),
   ask_user: z.strictObject({
     question: z.string().min(2).max(300),
@@ -82,7 +95,7 @@ const DESCRIPTIONS: Record<ToolName, string> = {
   read_page:
     'Lee la página que la persona tiene abierta (solo sedes oficiales). Devuelve el texto, y cada control con su referencia y su clase: {nav} lo puedes pulsar; {campo…} y {acción…} solo los toca la persona; {fuera…} no lo sigas. Los valores de los campos nunca aparecen.',
   open_page:
-    'Abre una dirección https de una sede oficial conocida en la pestaña de la persona. No acepta otras direcciones.',
+    'Abre una dirección https en la pestaña de la persona. Las sedes con mapa, las webs *.gob.es y las de comunidades autónomas se abren directamente. Cualquier otra web (por ejemplo, un ayuntamiento que encontraste con web_search) solo se abre si la persona la aprueba: explica en reason por qué es la oficial.',
   click:
     'Pulsa un control de clase {nav} (enlace oficial, pestaña, menú, desplegable fuera de formularios) para moverte por la sede. Rechaza campos, botones de acción, cualquier cosa dentro de un formulario y enlaces externos.',
   point_to:
@@ -112,12 +125,12 @@ const error = (content: string): ToolOutcome => ({ content, isError: true })
 const ok = (content: string, extra: Partial<ToolOutcome> = {}): ToolOutcome => ({ content, isError: false, ...extra })
 
 const NOT_OFFICIAL =
-  'La pestaña abierta no es una de las sedes oficiales que conoce la extensión, así que no puedo leerla ni tocarla. Usa find_procedure y open_page para ir a la sede correcta, o explícale a la persona qué hacer.'
+  'La pestaña abierta no es una web oficial de confianza para la extensión, así que no puedo leerla ni tocarla. Busca la web oficial (find_procedure o web_search) y ábrela con open_page, o explícale a la persona qué hacer.'
 
 async function officialTab(host: ToolHost): Promise<Tab | ToolOutcome> {
   const tab = await host.browser.activeTab()
   if (!tab) return error('No hay ninguna pestaña activa que pueda ver.')
-  if (!isOfficialUrl(tab.url, officialHosts(host.plugins ?? PLUGINS))) return error(NOT_OFFICIAL)
+  if (!isOfficialUrl(tab.url, trustedHosts(host.approvedHosts()))) return error(NOT_OFFICIAL)
   return tab
 }
 
@@ -156,7 +169,7 @@ async function readPage(host: ToolHost, state: ToolState, query: string | undefi
   let busy = false
   for (const frameId of frames.length ? frames : [0]) {
     const result = await host.browser
-      .page<(Outline & { url: string; title: string }) | { error: string }>(tab.id, { op: 'outline', query, ref_prefix: frameId ? `f${frameId}:` : '' }, frameId)
+      .page<(Outline & { url: string; title: string }) | { error: string }>(tab.id, { op: 'outline', query, ref_prefix: frameId ? `f${frameId}:` : '', approved: host.approvedHosts() }, frameId)
       .catch((e: unknown) => ({ error: e instanceof Error ? e.message : String(e) }))
     if ('error' in result) {
       if (frameId === 0) return error(result.error)
@@ -168,10 +181,15 @@ async function readPage(host: ToolHost, state: ToolState, query: string | undefi
     if (result.outline) parts.push(frameId ? `--- marco f${frameId} (${result.url}) ---\n${result.outline}` : result.outline)
   }
   const plugin = pluginForUrl(tab.url, host.plugins ?? PLUGINS)
+  const trust = trustOf(tab.url, host.approvedHosts())
   const header = [
     `URL: ${tab.url}`,
     `Título: ${tab.title}`,
-    plugin ? `Sede: ${plugin.name} (mapa ${plugin.status === 'verified' ? 'verificado' : 'en borrador'})` : null,
+    plugin
+      ? `Sede: ${plugin.name} (mapa ${plugin.status === 'verified' ? 'verificado' : 'en borrador'})`
+      : trust === 'government'
+        ? 'Web de la Administración sin mapa: guíate por lo que muestra la página.'
+        : 'Web aprobada por la persona en esta sesión, sin mapa: guíate por lo que muestra la página.',
     busy ? 'La página parece estar cargando todavía: vuelve a leerla en un momento si falta algo.' : null,
     query && !parts.length ? `Nada coincide con "${query}". Lee la página sin filtro.` : null,
     `${elements} controles.`,
@@ -195,7 +213,7 @@ export async function runTool(name: string, input: unknown, host: ToolHost, stat
       const { query } = parsed.data as z.infer<typeof TOOL_INPUTS.find_procedure>
       const hits = searchProcedures(query, plugins)
       if (!hits.length) {
-        return ok(`Ningún mapa tiene un trámite que encaje con "${query}". Prueba con otras palabras, o usa el buscador del Punto de Acceso General (plugin punto-acceso-general, trámite buscar-tramite).`)
+        return ok(`Ningún mapa tiene un trámite que encaje con "${query}". Busca la web oficial con web_search (prefiere dominios .gob.es, de comunidades autónomas o de ayuntamientos) y ábrela con open_page.`)
       }
       return ok(
         hits
@@ -215,9 +233,12 @@ export async function runTool(name: string, input: unknown, host: ToolHost, stat
       return readPage(host, state, query)
     }
     case 'open_page': {
-      const { url } = parsed.data as z.infer<typeof TOOL_INPUTS.open_page>
-      if (!isOfficialUrl(url, officialHosts(plugins))) {
-        return error('Esa dirección no es https o no pertenece a ninguna sede oficial que conozca la extensión. Solo puedo abrir direcciones de los mapas de sedes.')
+      const { url, reason } = parsed.data as z.infer<typeof TOOL_INPUTS.open_page>
+      const target = hostOf(url)
+      if (!target || !/^[a-z0-9.-]+\.[a-z]{2,}$/.test(target)) return error('Solo puedo abrir direcciones https normales (sin usuario ni contraseña en la dirección).')
+      if (!isOfficialUrl(url, trustedHosts(host.approvedHosts()))) {
+        const approved = await host.approveSite(url, reason)
+        if (!approved) return error(`La persona no ha aprobado ${target}. No la abras; pregúntale cómo quiere seguir o busca otra web oficial.`)
       }
       const tab = await host.browser.activeTab()
       if (!tab) return error('No hay ninguna pestaña activa.')
@@ -234,7 +255,7 @@ export async function runTool(name: string, input: unknown, host: ToolHost, stat
       const tab = await officialTab(host)
       if ('isError' in tab) return tab
       // Second check, in the page, on the live element.
-      const result = await host.browser.page<ClickResult | { error: string }>(tab.id, { op: 'click', ref: input.ref }, frameOf(input.ref))
+      const result = await host.browser.page<ClickResult | { error: string }>(tab.id, { op: 'click', ref: input.ref, approved: host.approvedHosts() }, frameOf(input.ref))
       if ('error' in result && !('ok' in result)) return error(result.error)
       if (!('ok' in result) || !result.ok) return error(('error' in result && result.error) || 'No se pudo pulsar.')
       await wait(900)
@@ -247,7 +268,7 @@ export async function runTool(name: string, input: unknown, host: ToolHost, stat
       if (!state.classes.has(input.ref)) return error(`No conozco el elemento ${input.ref}. Lee la página (read_page) primero.`)
       const tab = await officialTab(host)
       if ('isError' in tab) return tab
-      const result = await host.browser.page<{ ok: boolean; error?: string }>(tab.id, { op: 'point', ref: input.ref, instruction: input.instruction }, frameOf(input.ref))
+      const result = await host.browser.page<{ ok: boolean; error?: string }>(tab.id, { op: 'point', ref: input.ref, instruction: input.instruction, approved: host.approvedHosts() }, frameOf(input.ref))
       if (!result.ok) return error(result.error ?? 'No se pudo señalar.')
       return ok('Señalado en la página. Termina tu turno con una frase corta que repita la instrucción; la persona pulsará «Hecho, sigue» cuando lo haya hecho.', { pointed: true })
     }

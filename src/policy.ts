@@ -133,7 +133,7 @@ export const CLASS_TAG: Record<ControlClass, string> = {
   nav: 'nav',
   field: 'campo: lo rellena la persona',
   action: 'acción: la pulsa la persona',
-  external: 'fuera de las sedes oficiales',
+  external: 'fuera de las webs de confianza',
 }
 
 export const REFUSAL: Record<Exclude<ControlClass, 'nav'>, string> = {
@@ -142,5 +142,5 @@ export const REFUSAL: Record<Exclude<ControlClass, 'nav'>, string> = {
   action:
     'Es un botón que envía, firma, paga, guarda o actúa dentro de un formulario. Solo lo pulsa la persona: señálaselo con point_to y dile qué va a pasar cuando lo pulse.',
   external:
-    'El enlace lleva fuera de las sedes oficiales que conoce la extensión. No lo sigas; si hace falta, explícale a la persona adónde lleva.',
+    'El enlace lleva fuera de las webs de confianza de la extensión. No lo pulses. Si es la web oficial que buscáis, ábrela con open_page explicando por qué (la persona tendrá que aprobarla); si no, explícale a la persona adónde lleva.',
 }
