@@ -14,9 +14,9 @@ const STYLE = `
 .frame {
   position: fixed; inset: 0; pointer-events: none; z-index: 2147483645;
   /* The same yellow as the «Te toca a ti» highlight (guide.ts). */
-  border: 3px solid #e2b341; border-radius: 10px;
+  border: 8px solid #e2b341; border-radius: 14px;
   /* A glow inside every edge (the frame fills the window, so an outer shadow would be off screen). */
-  box-shadow: inset 0 0 28px 8px rgba(226, 179, 65, 0.45), inset 0 0 0 1px rgba(255, 255, 255, 0.5);
+  box-shadow: inset 0 0 90px 24px rgba(226, 179, 65, 0.4), inset 0 0 0 1px rgba(255, 255, 255, 0.5);
   opacity: 0; transition: opacity 0.25s ease;
 }
 .frame.on { opacity: 1; }
@@ -33,7 +33,7 @@ const STYLE = `
   .frame.on { animation: breathe 2.4s ease-in-out infinite; }
   .dot { animation: blink 1.2s ease-in-out infinite; }
 }
-@keyframes breathe { 50% { box-shadow: inset 0 0 40px 12px rgba(226, 179, 65, 0.58), inset 0 0 0 1px rgba(255, 255, 255, 0.5); } }
+@keyframes breathe { 50% { box-shadow: inset 0 0 120px 34px rgba(226, 179, 65, 0.5), inset 0 0 0 1px rgba(255, 255, 255, 0.5); } }
 @keyframes blink { 50% { opacity: 0.35; } }
 `
 
