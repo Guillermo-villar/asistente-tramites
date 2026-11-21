@@ -1,30 +1,7 @@
 /**
- * Demo data. The catalogue links point at the real official portals; the person's
- * expedientes, references and dates are fictional, so the UI has something to show
- * before a backend exists. Replace `misTramites` / `actividad` with API calls.
+ * Catalogue of common trámites. The links point at the real official portals; summaries and
+ * requirements are a simplified guide, so always check the official page before applying.
  */
-
-export type EstadoTramite = "accion" | "curso" | "completado" | "borrador";
-
-export type Paso = {
-  titulo: string;
-  estado: "hecho" | "actual" | "pendiente";
-  fecha?: string;
-};
-
-export type Tramite = {
-  id: string;
-  titulo: string;
-  organismo: string;
-  categoria: Categoria;
-  estado: EstadoTramite;
-  referencia: string;
-  actualizado: string;
-  plazo?: string;
-  siguientePaso: string;
-  pasos: Paso[];
-  url: string;
-};
 
 export type Categoria =
   | "Extranjería"
@@ -65,7 +42,7 @@ export const catalogo: FichaCatalogo[] = [
     duracion: "En el día de la cita, en la mayoría de oficinas",
     coste: "Tasa 790-012 (consulta el importe vigente)",
     url: "https://icp.administracionelectronica.gob.es/icpplus/index.html",
-    palabrasClave: ["nie", "extranjer", "tie", "residencia", "ex-15"],
+    palabrasClave: ["nie", "extranjer", "residencia", "ex-15"],
   },
   {
     id: "padron",
@@ -173,178 +150,7 @@ export const catalogo: FichaCatalogo[] = [
   },
 ];
 
-export const misTramites: Tramite[] = [
-  {
-    id: "t-nie",
-    titulo: "Asignación de NIE",
-    organismo: "Policía Nacional · Extranjería",
-    categoria: "Extranjería",
-    estado: "accion",
-    referencia: "EX15-2026-118430",
-    actualizado: "2026-11-20T17:40:00",
-    plazo: "2026-11-26",
-    siguientePaso: "Confirma la cita del 26 nov y paga la tasa 790-012",
-    url: "https://icp.administracionelectronica.gob.es/icpplus/index.html",
-    pasos: [
-      { titulo: "Formulario EX-15", estado: "hecho", fecha: "2026-11-14" },
-      { titulo: "Cita previa", estado: "actual", fecha: "2026-11-20" },
-      { titulo: "Pago de la tasa", estado: "pendiente" },
-      { titulo: "Comparecencia", estado: "pendiente" },
-    ],
-  },
-  {
-    id: "t-padron",
-    titulo: "Alta en el padrón",
-    organismo: "Ayuntamiento de Madrid",
-    categoria: "Padrón",
-    estado: "curso",
-    referencia: "PAD-28079-55120",
-    actualizado: "2026-11-18T10:05:00",
-    siguientePaso: "El ayuntamiento está revisando la documentación",
-    url: "https://sede.madrid.es/",
-    pasos: [
-      { titulo: "Solicitud presentada", estado: "hecho", fecha: "2026-11-12" },
-      { titulo: "Revisión", estado: "actual", fecha: "2026-11-18" },
-      { titulo: "Certificado", estado: "pendiente" },
-    ],
-  },
-  {
-    id: "t-clave",
-    titulo: "Registro en Cl@ve",
-    organismo: "Gobierno de España",
-    categoria: "Identidad digital",
-    estado: "completado",
-    referencia: "CLV-7Q2M-KX",
-    actualizado: "2026-11-09T12:30:00",
-    siguientePaso: "Listo: ya puedes identificarte en las sedes electrónicas",
-    url: "https://clave.gob.es/",
-    pasos: [
-      { titulo: "Videollamada", estado: "hecho", fecha: "2026-11-09" },
-      { titulo: "Activación", estado: "hecho", fecha: "2026-11-09" },
-    ],
-  },
-  {
-    id: "t-vida",
-    titulo: "Informe de vida laboral",
-    organismo: "Seguridad Social",
-    categoria: "Seguridad Social",
-    estado: "completado",
-    referencia: "VL-2026-11-06",
-    actualizado: "2026-11-06T09:12:00",
-    siguientePaso: "PDF descargado en Documentos",
-    url: "https://portal.seg-social.gob.es/wps/portal/importass/importass",
-    pasos: [{ titulo: "Descarga", estado: "hecho", fecha: "2026-11-06" }],
-  },
-  {
-    id: "t-cert",
-    titulo: "Certificado digital FNMT",
-    organismo: "FNMT-RCM",
-    categoria: "Identidad digital",
-    estado: "borrador",
-    referencia: "—",
-    actualizado: "2026-11-03T19:20:00",
-    siguientePaso: "Retoma la solicitud: falta elegir el modo de acreditación",
-    url: "https://www.sede.fnmt.gob.es/certificados/persona-fisica",
-    pasos: [
-      { titulo: "Solicitud online", estado: "actual" },
-      { titulo: "Acreditación", estado: "pendiente" },
-      { titulo: "Descarga", estado: "pendiente" },
-    ],
-  },
-];
-
-export type Actividad = {
-  id: string;
-  fecha: string;
-  actor: "asistente" | "tu" | "organismo";
-  titulo: string;
-  detalle?: string;
-  tramiteId?: string;
-};
-
-export const actividad: Actividad[] = [
-  {
-    id: "a1",
-    fecha: "2026-11-20T17:40:00",
-    actor: "asistente",
-    titulo: "Encontró cita para el NIE",
-    detalle: "Comisaría de Aluche, 26 nov a las 09:20. Pendiente de tu confirmación.",
-    tramiteId: "t-nie",
-  },
-  {
-    id: "a2",
-    fecha: "2026-11-18T10:05:00",
-    actor: "organismo",
-    titulo: "El ayuntamiento recibió tu solicitud de padrón",
-    detalle: "Estado: en revisión.",
-    tramiteId: "t-padron",
-  },
-  {
-    id: "a3",
-    fecha: "2026-11-14T11:22:00",
-    actor: "tu",
-    titulo: "Firmaste y enviaste el formulario EX-15",
-    tramiteId: "t-nie",
-  },
-  {
-    id: "a4",
-    fecha: "2026-11-14T11:02:00",
-    actor: "asistente",
-    titulo: "Rellenó el EX-15 con tus datos",
-    detalle: "Revisaste 14 campos antes de firmar.",
-    tramiteId: "t-nie",
-  },
-  {
-    id: "a5",
-    fecha: "2026-11-12T16:48:00",
-    actor: "tu",
-    titulo: "Presentaste el alta en el padrón",
-    tramiteId: "t-padron",
-  },
-  {
-    id: "a6",
-    fecha: "2026-11-09T12:30:00",
-    actor: "organismo",
-    titulo: "Cl@ve activado",
-    tramiteId: "t-clave",
-  },
-  {
-    id: "a7",
-    fecha: "2026-11-06T09:12:00",
-    actor: "asistente",
-    titulo: "Descargó tu informe de vida laboral",
-    detalle: "Guardado en Documentos.",
-    tramiteId: "t-vida",
-  },
-];
-
-export const estadoLabel: Record<EstadoTramite, string> = {
-  accion: "Requiere acción",
-  curso: "En curso",
-  completado: "Completado",
-  borrador: "Borrador",
-};
-
 export function buscarEnCatalogo(texto: string): FichaCatalogo | undefined {
   const t = texto.toLowerCase();
   return catalogo.find((f) => f.palabrasClave.some((k) => t.includes(k)));
-}
-
-const fechaCorta = new Intl.DateTimeFormat("es-ES", { day: "numeric", month: "short" });
-const fechaHora = new Intl.DateTimeFormat("es-ES", {
-  day: "numeric",
-  month: "short",
-  hour: "2-digit",
-  minute: "2-digit",
-});
-
-export const formatFecha = (iso: string) => fechaCorta.format(new Date(iso));
-export const formatFechaHora = (iso: string) => fechaHora.format(new Date(iso));
-
-/** Whole days from today to `iso` (negative when it is in the past). */
-export function diasHasta(iso: string, hoy = new Date()) {
-  const a = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
-  const d = new Date(iso);
-  const b = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  return Math.round((b.getTime() - a.getTime()) / 86_400_000);
 }

@@ -1,33 +1,24 @@
 import { cn } from "@/lib/utils";
+import { ESCUDO_PATHS, ESCUDO_RATIO, ESCUDO_VIEWBOX } from "@/components/brand/escudo-paths";
 
 /**
- * Original mark in a monoline, Correos-style vocabulary (after Samuel Mòdol and
- * Manu Homie's 2019 escudo redesign study): a shield outline that "talks" (three typing
- * dots) with a dot under the tip. It is NOT the escudo and NOT the «Gobierno de España»
- * lockup: this is an unofficial service and must not look like the Government's own.
- * Swap this component to rebrand; everything else uses <LogoMark /> / <Logo />.
+ * The escudo from Samuel Mòdol and Manu Homie's monoline redesign (see escudo-paths.ts).
+ * `size` is the height in px. It fills with `currentColor` (brand red by default), so it
+ * also works in black or white. Swap this component to rebrand.
  */
-export function LogoMark({ size = 28, className }: { size?: number; className?: string }) {
+export function LogoMark({ size = 32, className }: { size?: number; className?: string }) {
   return (
     <svg
       aria-hidden="true"
       className={cn("shrink-0 text-brand-red", className)}
-      fill="none"
+      fill="currentColor"
       height={size}
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={3.8}
-      viewBox="0 0 48 48"
-      width={size}
+      viewBox={ESCUDO_VIEWBOX}
+      width={Math.round(size * ESCUDO_RATIO)}
     >
-      <path d="M9 6H39V22C39 31 32.5 36.5 24 40C15.5 36.5 9 31 9 22Z" />
-      <g fill="currentColor" stroke="none">
-        <circle cx="16.5" cy="20" r="2.7" />
-        <circle cx="24" cy="20" r="2.7" />
-        <circle cx="31.5" cy="20" r="2.7" />
-        <circle cx="24" cy="45.2" r="2.1" />
-      </g>
+      {ESCUDO_PATHS.map((d, i) => (
+        <path key={i} d={d} fillRule="evenodd" />
+      ))}
     </svg>
   );
 }
@@ -53,8 +44,8 @@ export function Waves({ className }: { className?: string }) {
 
 export function Logo({ className }: { className?: string }) {
   return (
-    <span className={cn("flex items-center gap-2.5", className)}>
-      <LogoMark />
+    <span className={cn("flex items-center gap-3", className)}>
+      <LogoMark size={38} />
       <span className="flex flex-col font-slab leading-none uppercase">
         <span className="text-[10px] tracking-[0.32em] text-foreground/80">Asistente de</span>
         <span className="mt-1 text-[15px] font-bold tracking-[0.2em]">Trámites</span>

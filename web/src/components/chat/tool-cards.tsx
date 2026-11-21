@@ -1,17 +1,17 @@
-import { useState } from "react";
+import { createContext, useContext, useState } from "react";
 import { ArrowUpRightIcon, CalendarIcon, CheckIcon, ClockIcon, EuroIcon, MapPinIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { EstadoBadge, PasosBarra, pasosResumen } from "@/components/tramites/estado";
 import { cn } from "@/lib/utils";
-import type { FichaCatalogo, Tramite } from "@/data/tramites";
+import type { FichaCatalogo } from "@/data/tramites";
+
+/** Lets a card send a follow-up message to the chat (e.g. "búscame cita"). */
+export const AskContext = createContext<(text: string) => void>(() => {});
 
 /** A tool result rendered as UI: the "generative" part of the chat. */
 export function ToolResultCard({ name, output }: { name: string; output: unknown }) {
   switch (name) {
     case "buscar_tramite":
       return <FichaCard ficha={output as FichaCatalogo} />;
-    case "consultar_expedientes":
-      return <ExpedientesCard tramites={(output as { tramites: Tramite[] }).tramites} />;
     case "buscar_cita":
       return <CitaCard {...(output as CitaOutput)} />;
     default:
@@ -21,14 +21,13 @@ export function ToolResultCard({ name, output }: { name: string; output: unknown
 
 export const toolLabels: Record<string, { running: string; done: string }> = {
   buscar_tramite: { running: "Buscando en el catálogo de trámites…", done: "Catálogo de trámites" },
-  consultar_expedientes: { running: "Consultando tus expedientes…", done: "Tus expedientes" },
   buscar_cita: { running: "Buscando huecos de cita previa…", done: "Cita previa" },
 };
 
-function Shell({ eyebrow, children, className }: { eyebrow: string; children: React.ReactNode; className?: string }) {
+function Shell({ eyebrow, children }: { eyebrow: string; children: React.ReactNode }) {
   return (
-    <div className={cn("w-full overflow-hidden rounded-xl border bg-card", className)}>
-      <div className="flex items-center justify-between border-b px-4 py-2.5">
+    <div className="w-full overflow-hidden rounded-xl border bg-card">
+      <div className="border-b px-4 py-2.5">
         <span className="font-slab text-[10px] uppercase tracking-[0.24em] text-muted-foreground">{eyebrow}</span>
       </div>
       {children}
@@ -37,6 +36,7 @@ function Shell({ eyebrow, children, className }: { eyebrow: string; children: Re
 }
 
 function FichaCard({ ficha }: { ficha: FichaCatalogo }) {
+  const ask = useContext(AskContext);
   const [hechos, setHechos] = useState<Set<number>>(new Set());
   const toggle = (i: number) =>
     setHechos((prev) => {
@@ -91,7 +91,9 @@ function FichaCard({ ficha }: { ficha: FichaCatalogo }) {
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <Button size="sm">Empezar con el asistente</Button>
+          <Button onClick={() => ask(`Búscame cita para ${ficha.titulo.toLowerCase()}`)} size="sm">
+            Buscar cita
+          </Button>
           <Button asChild size="sm" variant="outline">
             <a href={ficha.url} rel="noreferrer" target="_blank">
               Ficha oficial <ArrowUpRightIcon />
@@ -103,43 +105,23 @@ function FichaCard({ ficha }: { ficha: FichaCatalogo }) {
   );
 }
 
-function ExpedientesCard({ tramites }: { tramites: Tramite[] }) {
-  return (
-    <Shell eyebrow="Tus expedientes abiertos">
-      <ul className="divide-y">
-        {tramites.map((t) => (
-          <li key={t.id} className="space-y-2 px-4 py-3">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="truncate text-sm font-medium">{t.titulo}</p>
-                <p className="truncate text-xs text-muted-foreground">{t.organismo}</p>
-              </div>
-              <EstadoBadge estado={t.estado} />
-            </div>
-            <PasosBarra pasos={t.pasos} />
-            <p className="text-xs text-muted-foreground">
-              {pasosResumen(t.pasos)} · {t.siguientePaso}
-            </p>
-          </li>
-        ))}
-      </ul>
-    </Shell>
-  );
-}
-
 type CitaOutput = {
   tramite: string;
   huecos: { oficina: string; direccion: string; fecha: string; hora: string }[];
 };
 
-const fechaLarga = new Intl.DateTimeFormat("es-ES", { weekday: "short", day: "numeric", month: "short" });
+const diaSemana = new Intl.DateTimeFormat("es-ES", { weekday: "short" });
+const fechaCorta = new Intl.DateTimeFormat("es-ES", { weekday: "long", day: "numeric", month: "long" });
 
 function CitaCard({ tramite, huecos }: CitaOutput) {
+  const ask = useContext(AskContext);
   const [elegido, setElegido] = useState<number | null>(null);
+  const h = elegido === null ? null : huecos[elegido];
+
   return (
     <Shell eyebrow={`Cita previa · ${tramite}`}>
       <div className="space-y-2 p-3">
-        {huecos.map((h, i) => (
+        {huecos.map((x, i) => (
           <button
             key={i}
             className={cn(
@@ -150,25 +132,30 @@ function CitaCard({ tramite, huecos }: CitaOutput) {
             type="button"
           >
             <span className="grid w-12 shrink-0 place-items-center rounded-md border bg-background py-1 text-center leading-tight">
-              <span className="text-[10px] uppercase text-muted-foreground">
-                {fechaLarga.format(new Date(h.fecha)).split(" ")[0]}
-              </span>
-              <span className="text-sm font-semibold">{new Date(h.fecha).getDate()}</span>
+              <span className="text-[10px] uppercase text-muted-foreground">{diaSemana.format(new Date(x.fecha))}</span>
+              <span className="text-sm font-semibold">{new Date(x.fecha).getDate()}</span>
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm font-medium">{h.oficina}</span>
+              <span className="block truncate text-sm font-medium">{x.oficina}</span>
               <span className="flex items-center gap-1 truncate text-xs text-muted-foreground">
-                <MapPinIcon className="size-3" /> {h.direccion}
+                <MapPinIcon className="size-3" /> {x.direccion}
               </span>
             </span>
-            <span className="text-sm tabular-nums">{h.hora}</span>
+            <span className="text-sm tabular-nums">{x.hora}</span>
           </button>
         ))}
-        <div className="flex items-center justify-between gap-2 pt-1">
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
           <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <CalendarIcon className="size-3.5" /> La confirmación final la haces tú en la sede.
           </p>
-          <Button disabled={elegido === null} size="sm">
+          <Button
+            disabled={!h}
+            onClick={() =>
+              h &&
+              ask(`Reserva la cita de ${tramite.toLowerCase()} en ${h.oficina}, el ${fechaCorta.format(new Date(h.fecha))} a las ${h.hora}`)
+            }
+            size="sm"
+          >
             Reservar este hueco
           </Button>
         </div>

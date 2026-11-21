@@ -1,6 +1,6 @@
-import { useChat } from "@ai-sdk/react";
-import { isToolUIPart, getToolName, type UIMessage } from "ai";
-import { BadgeCheckIcon, CalendarClockIcon, FileTextIcon, LandmarkIcon, ListChecksIcon } from "lucide-react";
+import type { UseChatHelpers } from "@ai-sdk/react";
+import { getToolName, isToolUIPart, type UIMessage } from "ai";
+import { PuzzleIcon, RotateCcwIcon } from "lucide-react";
 import {
   Conversation,
   ConversationContent,
@@ -20,114 +20,109 @@ import { Reasoning, ReasoningContent, ReasoningTrigger } from "@/components/ai-e
 import { Shimmer } from "@/components/ai-elements/shimmer";
 import { Source, Sources, SourcesContent, SourcesTrigger } from "@/components/ai-elements/sources";
 import { Tool, ToolContent, ToolHeader, ToolInput, ToolOutput, type ToolPart } from "@/components/ai-elements/tool";
-import { LogoMark, Waves } from "@/components/brand/logo";
-import { ToolResultCard, toolLabels } from "@/components/chat/tool-cards";
-import { MockTramitesTransport } from "@/lib/mock-transport";
+import { LogoMark } from "@/components/brand/logo";
+import { AskContext, ToolResultCard, toolLabels } from "@/components/chat/tool-cards";
+import { cn } from "@/lib/utils";
 
-const transport = new MockTramitesTransport();
+export type ChatHelpers = UseChatHelpers<UIMessage>;
 
 const sugerencias = [
-  { icon: BadgeCheckIcon, titulo: "Necesito el NIE", texto: "Necesito sacar el NIE, ¿qué tengo que llevar?" },
-  { icon: ListChecksIcon, titulo: "¿Cómo van mis trámites?", texto: "¿Cómo van mis trámites?" },
-  { icon: CalendarClockIcon, titulo: "Buscar cita previa", texto: "Búscame cita para el NIE" },
-  { icon: LandmarkIcon, titulo: "Empadronarme", texto: "Quiero empadronarme en Madrid" },
-  { icon: FileTextIcon, titulo: "Hacer la renta", texto: "¿Cómo hago la declaración de la renta?" },
+  { text: "¿Cómo funciona la extensión?", icon: PuzzleIcon },
+  { text: "Necesito el NIE" },
+  { text: "¿Cómo hago la renta?" },
+  { text: "Me he quedado en paro" },
 ];
 
-export function Chat() {
-  const { messages, sendMessage, status, stop } = useChat({ transport });
-
+/**
+ * The assistant, embedded in the landing hero. Empty, it is just a prompt box with a few
+ * suggestions; once the conversation starts it opens into a full panel.
+ */
+export function ChatPanel({ chat, className }: { chat: ChatHelpers; className?: string }) {
+  const { messages, sendMessage, status, stop, setMessages } = chat;
   const send = (text: string) => {
     if (text.trim()) sendMessage({ text });
   };
-  const onSubmit = (m: PromptInputMessage) => send(m.text);
-  const empty = messages.length === 0;
-
-  return (
-    <div className="flex h-full min-h-0 flex-col">
-      {empty ? (
-        <div className="flex flex-1 flex-col items-center justify-center overflow-y-auto px-4 py-10">
-          <div className="w-full max-w-2xl">
-            <LogoMark size={44} />
-            <h1 className="mt-6 font-slab text-3xl leading-tight tracking-tight sm:text-4xl">
-              ¿Qué trámite necesitas hoy?
-            </h1>
-            <p className="mt-3 max-w-lg text-muted-foreground">
-              Te digo qué necesitas, busco cita y sigo el estado por ti. Tú revisas y firmas: nada se envía sin tu
-              confirmación.
-            </p>
-            <Waves className="mt-6" />
-            <div className="mt-6">
-              <Composer onSubmit={onSubmit} status={status} stop={stop} />
-            </div>
-            <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {sugerencias.map((s) => (
-                <button
-                  key={s.titulo}
-                  className="group flex items-center gap-3 rounded-xl border bg-card px-3.5 py-3 text-left text-sm transition-colors hover:border-foreground/20 hover:bg-muted/50"
-                  onClick={() => send(s.texto)}
-                  type="button"
-                >
-                  <s.icon className="size-4 shrink-0 text-muted-foreground transition-colors group-hover:text-brand-red" />
-                  <span className="font-medium">{s.titulo}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      ) : (
-        <>
-          <Conversation className="min-h-0 flex-1">
-            <ConversationContent className="mx-auto w-full max-w-3xl gap-6 px-4 py-8">
-              {messages.map((m, i) => (
-                <ChatMessage
-                  key={m.id}
-                  message={m}
-                  streaming={status === "streaming" && i === messages.length - 1}
-                />
-              ))}
-              {status === "submitted" && (
-                <div className="flex items-center gap-2.5 text-sm text-muted-foreground">
-                  <LogoMark size={18} />
-                  <Shimmer>Leyendo tu consulta…</Shimmer>
-                </div>
-              )}
-            </ConversationContent>
-            <ConversationScrollButton />
-          </Conversation>
-          <div className="mx-auto w-full max-w-3xl px-4 pb-4">
-            <Composer onSubmit={onSubmit} status={status} stop={stop} />
-            <p className="mt-2 text-center text-[11px] text-muted-foreground">
-              Servicio no oficial. Revisa siempre la información en la sede electrónica antes de presentar.
-            </p>
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
-function Composer({
-  onSubmit,
-  status,
-  stop,
-}: {
-  onSubmit: (m: PromptInputMessage) => void;
-  status: ReturnType<typeof useChat>["status"];
-  stop: () => void;
-}) {
-  return (
-    <PromptInput className="rounded-2xl bg-card shadow-[0_1px_2px_rgb(0_0_0/0.04),0_8px_24px_-12px_rgb(0_0_0/0.12)]" onSubmit={onSubmit}>
+  const composer = (
+    <PromptInput
+      className="rounded-2xl bg-card"
+      onSubmit={(m: PromptInputMessage) => send(m.text)}
+    >
       <PromptInputBody>
-        <PromptInputTextarea />
+        <PromptInputTextarea className="min-h-11" />
       </PromptInputBody>
       <PromptInputFooter>
         <PromptInputTools>
-          <span className="px-2 text-xs text-muted-foreground">Conectado con Cl@ve</span>
+          <span className="px-2 text-[11px] text-muted-foreground">Nada se envía sin tu confirmación</span>
         </PromptInputTools>
         <PromptInputSubmit onStop={stop} status={status} />
       </PromptInputFooter>
     </PromptInput>
+  );
+
+  if (messages.length === 0) {
+    return (
+      <div className={className}>
+        <div className="rounded-2xl shadow-[0_1px_2px_rgb(0_0_0/0.04),0_18px_44px_-22px_rgb(0_0_0/0.22)]">
+          {composer}
+        </div>
+        <div className="mt-4 flex flex-wrap justify-center gap-2">
+          {sugerencias.map((s) => (
+            <button
+              key={s.text}
+              className="inline-flex items-center gap-1.5 rounded-full border bg-background px-3 py-1 text-[13px] text-muted-foreground transition-colors hover:border-brand-red/40 hover:text-brand-red"
+              onClick={() => send(s.text)}
+              type="button"
+            >
+              {s.icon && <s.icon className="size-3.5 text-brand-red" />}
+              {s.text}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <AskContext.Provider value={send}>
+      <div
+        className={cn(
+          "flex h-[600px] max-h-[calc(100dvh-7rem)] min-h-[440px] flex-col overflow-hidden rounded-3xl border bg-card shadow-[0_1px_2px_rgb(0_0_0/0.04),0_24px_60px_-24px_rgb(0_0_0/0.18)]",
+          className
+        )}
+      >
+        <header className="flex items-center gap-2.5 border-b px-4 py-2.5">
+          <LogoMark size={22} />
+          <p className="flex-1 text-sm font-medium">Asistente de trámites</p>
+          <button
+            className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+            onClick={() => {
+              stop();
+              setMessages([]);
+            }}
+            type="button"
+          >
+            <RotateCcwIcon className="size-3.5" /> Nueva
+          </button>
+        </header>
+
+        <Conversation className="min-h-0 flex-1">
+          <ConversationContent className="gap-6 px-5 py-6">
+            {messages.map((m, i) => (
+              <ChatMessage key={m.id} message={m} streaming={status === "streaming" && i === messages.length - 1} />
+            ))}
+            {status === "submitted" && (
+              <div className="flex items-center gap-2.5 text-sm text-muted-foreground">
+                <span className="size-1.5 animate-pulse rounded-full bg-brand-red" />
+                <Shimmer>Leyendo tu consulta…</Shimmer>
+              </div>
+            )}
+          </ConversationContent>
+          <ConversationScrollButton />
+        </Conversation>
+
+        <div className="border-t p-3">{composer}</div>
+      </div>
+    </AskContext.Provider>
   );
 }
 
@@ -139,9 +134,7 @@ function ChatMessage({ message, streaming }: { message: UIMessage; streaming: bo
       <MessageContent className="w-full">
         {message.parts.map((part, i) => {
           const key = `${message.id}-${i}`;
-          if (part.type === "text") {
-            return <MessageResponse key={key}>{part.text}</MessageResponse>;
-          }
+          if (part.type === "text") return <MessageResponse key={key}>{part.text}</MessageResponse>;
           if (part.type === "reasoning") {
             return (
               <Reasoning key={key} className="mb-0" isStreaming={streaming && part.state === "streaming"}>
@@ -150,13 +143,11 @@ function ChatMessage({ message, streaming }: { message: UIMessage; streaming: bo
               </Reasoning>
             );
           }
-          if (isToolUIPart(part)) {
-            return <ToolBlock key={key} part={part} />;
-          }
+          if (isToolUIPart(part)) return <ToolBlock key={key} part={part} />;
           return null;
         })}
         {sources.length > 0 && (
-          <Sources>
+          <Sources className="mb-0">
             <SourcesTrigger count={sources.length} />
             <SourcesContent>
               {sources.map((s) => (
@@ -183,12 +174,19 @@ function ToolBlock({ part }: { part: ToolPart }) {
     );
   }
 
+  const header =
+    part.type === "dynamic-tool" ? (
+      <ToolHeader state={part.state} title={`Consultado: ${label.done}`} toolName={part.toolName} type={part.type} />
+    ) : (
+      <ToolHeader state={part.state} title={`Consultado: ${label.done}`} type={part.type} />
+    );
+
   return (
     <div className="space-y-2">
       <ToolResultCard name={name} output={part.output} />
-      {/* Raw call, for transparency: what the assistant asked and what came back. */}
+      {/* The raw call, for transparency: what the assistant asked and what came back. */}
       <Tool className="mb-0 border-dashed">
-        <ToolHeader title={`Consultado: ${label.done}`} type={part.type as `tool-${string}`} state={part.state} />
+        {header}
         <ToolContent>
           <ToolInput input={part.input} />
           <ToolOutput errorText={part.errorText} output={part.output} />
